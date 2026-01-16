@@ -1,12 +1,9 @@
 String aba2str (String magstripe, int magStart, int magEnd, String swipeDirection) {
-  //f.println(String()+"Start pos:"+magStart);
-  //f.println(String()+"Start pos:"+magEnd);
   String ABA="";
   String aba2str="";
   int magCount=abs(magEnd-magStart);
-  //f.println(String()+"magCount:"+magCount);
   aba2str=(String()+"\"Cleaned\" Binary:"+magstripe.substring(magStart,magEnd)+"\n");
-  aba2str+=(String()+" * Possible "+swipeDirection+" Card Data\(ASCII\):");
+  aba2str+=(String()+" * Possible "+swipeDirection+" Card Data(ASCII):");
   while (magCount>0) {
     ABA=magstripe.substring(magStart,magStart+4);
     if (ABA=="1101") {aba2str+=(";");}

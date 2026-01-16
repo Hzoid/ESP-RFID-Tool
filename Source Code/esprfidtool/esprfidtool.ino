@@ -36,7 +36,7 @@
 #include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266mDNS.h>
 #include <FS.h>
-#include <ArduinoJson.h> // ArduinoJson library 5.11.0 by Benoit Blanchon https://github.com/bblanchon/ArduinoJson
+#include <ArduinoJson.h> // ArduinoJson library 6.19.4 by Benoit Blanchon https://github.com/bblanchon/ArduinoJson
 #include <ESP8266FtpServer.h> // https://github.com/exploitagency/esp8266FTPServer/tree/feature/bbx10_speedup
 #include <DNSServer.h>
 #include <ESP8266mDNS.h>
@@ -384,6 +384,11 @@ void LogWiegand(WiegandNG &tempwg) {
       break;
   }
 
+  //This happens on boot so we filter it.
+  if(unknown && countedBits == 2) {
+    return;
+  }
+
   File f = SPIFFS.open("/"+String(logname), "a"); //Open the log in append mode to store capture
   int preambleLen;
   if (unknown==true && countedBits!=4 && countedBits!=8 && countedBits!=248) {
@@ -568,7 +573,6 @@ void LogWiegand(WiegandNG &tempwg) {
     int endSentinel=(magstripe.lastIndexOf("11111")+4);
     int magStart=0;
     int magEnd=1;
-    //f.print("<pre>");
   
     f.print(" * Trying \"Forward\" Swipe,");
     magStart=startSentinel;
@@ -579,19 +583,11 @@ void LogWiegand(WiegandNG &tempwg) {
     char magchar[249];
     magstripe.toCharArray(magchar,249);
     magstripe=String(strrev(magchar));
-    //f.println(String()+"Reverse: "+magstripe);
     magStart=magstripe.indexOf("11010");
     magEnd=(magstripe.lastIndexOf("11111")+4);
     f.println(aba2str(magstripe,magStart,magEnd,"\"Reverse\" Swipe"));
-  
-    //f.print("</pre>");
-    //f.println(String()+F(" * You can verify the data at the following URL: <a target=\"_blank\" href=\"https://www.legacysecuritygroup.com/aba-decode.php?binary=")+magstripe+F("\">https://www.legacysecuritygroup.com/aba-decode.php?binary=")+magstripe+F("</a>"));
   }
 
-//Debug
-//  f.print(F("Free heap:"));
-//  f.println(ESP.getFreeHeap(),DEC);
-  
   unknown=false;
   binChunk3="";
   binChunk2exists=false;
@@ -599,7 +595,7 @@ void LogWiegand(WiegandNG &tempwg) {
   cardChunk1 = 0; cardChunk2 = 0;
   binChunk2len=0;
 
-  f.close(); //done
+  f.close();
 }
 
 #include "api.h"
@@ -664,74 +660,132 @@ void settingsPage()
   "<!DOCTYPE HTML>"
   "<html>"
   "<head>"
-  "<meta name = \"viewport\" content = \"width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0\">"
+  "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
   "<title>ESP-RFID-Tool Settings</title>"
-  "<style>"
-  "\"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }\""
-  "</style>"
+  "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:900px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}h1{color:#2c3e50;margin-bottom:25px;font-size:28px;font-weight:600}h2{color:#34495e;margin:25px 0 15px;font-size:20px;font-weight:500;padding-bottom:10px;border-bottom:2px solid #e9ecef}.form-group{margin:20px 0}.form-group label{display:block;margin-bottom:8px;font-weight:500;color:#495057;font-size:14px}.form-group small{display:block;color:#6c757d;font-size:13px;margin-top:5px;margin-bottom:10px}input[type=\"text\"],input[type=\"password\"],input[type=\"number\"],select{width:100%;max-width:400px;padding:10px 12px;border:1px solid #ced4da;border-radius:6px;font-size:15px;font-family:inherit;transition:border-color 0.3s,box-shadow 0.3s}input[type=\"text\"]:focus,input[type=\"password\"]:focus,input[type=\"number\"]:focus,select:focus{outline:none;border-color:#007bff;box-shadow:0 0 0 3px rgba(0,123,255,0.1)}input[type=\"radio\"]{margin-right:8px;margin-left:0;width:18px;height:18px;cursor:pointer}.radio-group{margin:10px 0}.radio-group label{display:inline;font-weight:400;margin-left:5px;cursor:pointer}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}input[type=\"submit\"]{background:#28a745;color:#fff;padding:12px 30px;border:none;border-radius:6px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.3s;font-family:inherit}input[type=\"submit\"]:hover{background:#218838;transform:translateY(-1px);box-shadow:0 4px 8px rgba(40,167,69,0.3)}hr{margin:30px 0;border:none;border-top:1px solid #e9ecef}</style>"
   "</head>"
   "<body>"
-  "<a href=\"/\"><- BACK TO INDEX</a><br><br>"
+  "<div class=\"container\">"
+  "<a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a>"
   "<h1>ESP-RFID-Tool Settings</h1>"
-  "<a href=\"/restoredefaults\"><button>Restore Default Configuration</button></a>"
+  "<a href=\"/restoredefaults\" class=\"btn btn-danger\">Restore Default Configuration</a>"
   "<hr>"
   "<FORM action=\"/settings\"  id=\"configuration\" method=\"post\">"
-  "<P>"
-  "<b>WiFi Configuration:</b><br><br>"
-  "<b>Network Type</b><br>"
+  "<h2>WiFi Configuration</h2>"
+  "<div class=\"form-group\">"
+  "<label>Network Type</label>"
+  "<div class=\"radio-group\">"
   )+
-  F("Access Point Mode: <INPUT type=\"radio\" name=\"accesspointmode\" value=\"1\"")+accesspointmodeyes+F("><br>"
-  "Join Existing Network: <INPUT type=\"radio\" name=\"accesspointmode\" value=\"0\"")+accesspointmodeno+F("><br><br>"
-  "<b>Hidden<br></b>"
-  "Yes <INPUT type=\"radio\" name=\"hidden\" value=\"1\"")+hiddenyes+F("><br>"
-  "No <INPUT type=\"radio\" name=\"hidden\" value=\"0\"")+hiddenno+F("><br><br>"
-  "SSID: <input type=\"text\" name=\"ssid\" value=\"")+ssid+F("\" maxlength=\"31\" size=\"31\"><br>"
-  "Password: <input type=\"password\" name=\"password\" value=\"")+password+F("\" maxlength=\"64\" size=\"31\"><br>"
-  "Channel: <select name=\"channel\" form=\"configuration\"><option value=\"")+channel+"\" selected>"+channel+F("</option><option value=\"1\">1</option><option value=\"2\">2</option><option value=\"3\">3</option><option value=\"4\">4</option><option value=\"5\">5</option><option value=\"6\">6</option><option value=\"7\">7</option><option value=\"8\">8</option><option value=\"9\">9</option><option value=\"10\">10</option><option value=\"11\">11</option><option value=\"12\">12</option><option value=\"13\">13</option><option value=\"14\">14</option></select><br><br>"
-  "IP: <input type=\"text\" name=\"local_IPstr\" value=\"")+local_IPstr+F("\" maxlength=\"16\" size=\"31\"><br>"
-  "Gateway: <input type=\"text\" name=\"gatewaystr\" value=\"")+gatewaystr+F("\" maxlength=\"16\" size=\"31\"><br>"
-  "Subnet: <input type=\"text\" name=\"subnetstr\" value=\"")+subnetstr+F("\" maxlength=\"16\" size=\"31\"><br><br>"
+  F("<label><INPUT type=\"radio\" name=\"accesspointmode\" value=\"1\"")+accesspointmodeyes+F("> Access Point Mode</label><br>"
+  "<label><INPUT type=\"radio\" name=\"accesspointmode\" value=\"0\"")+accesspointmodeno+F("> Join Existing Network</label>"
+  "</div></div>"
+  "<div class=\"form-group\">"
+  "<label>Hidden</label>"
+  "<div class=\"radio-group\">"
+  "<label><INPUT type=\"radio\" name=\"hidden\" value=\"1\"")+hiddenyes+F("> Yes</label><br>"
+  "<label><INPUT type=\"radio\" name=\"hidden\" value=\"0\"")+hiddenno+F("> No</label>"
+  "</div></div>"
+  "<div class=\"form-group\">"
+  "<label>SSID</label>"
+  "<input type=\"text\" name=\"ssid\" value=\"")+ssid+F("\" maxlength=\"31\">"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Password</label>"
+  "<input type=\"password\" name=\"password\" value=\"")+password+F("\" maxlength=\"64\">"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Channel</label>"
+  "<select name=\"channel\" form=\"configuration\"><option value=\"")+channel+"\" selected>"+channel+F("</option><option value=\"1\">1</option><option value=\"2\">2</option><option value=\"3\">3</option><option value=\"4\">4</option><option value=\"5\">5</option><option value=\"6\">6</option><option value=\"7\">7</option><option value=\"8\">8</option><option value=\"9\">9</option><option value=\"10\">10</option><option value=\"11\">11</option><option value=\"12\">12</option><option value=\"13\">13</option><option value=\"14\">14</option></select>"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>IP Address</label>"
+  "<input type=\"text\" name=\"local_IPstr\" value=\"")+local_IPstr+F("\" maxlength=\"16\">"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Gateway</label>"
+  "<input type=\"text\" name=\"gatewaystr\" value=\"")+gatewaystr+F("\" maxlength=\"16\">"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Subnet</label>"
+  "<input type=\"text\" name=\"subnetstr\" value=\"")+subnetstr+F("\" maxlength=\"16\">"
+  "</div>"
   "<hr>"
-  "<b>Web Interface Administration Settings:</b><br><br>"
-  "Username: <input type=\"text\" name=\"update_username\" value=\"")+update_username+F("\" maxlength=\"31\" size=\"31\"><br>"
-  "Password: <input type=\"password\" name=\"update_password\" value=\"")+update_password+F("\" maxlength=\"64\" size=\"31\"><br><br>"
+  "<h2>Web Interface Administration Settings</h2>"
+  "<div class=\"form-group\">"
+  "<label>Username</label>"
+  "<input type=\"text\" name=\"update_username\" value=\"")+update_username+F("\" maxlength=\"31\">"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Password</label>"
+  "<input type=\"password\" name=\"update_password\" value=\"")+update_password+F("\" maxlength=\"64\">"
+  "</div>"
   "<hr>"
-  "<b>FTP Server Settings</b><br>"
-  "<small>Changes require a reboot.</small><br>"
-  "Enabled <INPUT type=\"radio\" name=\"ftpenabled\" value=\"1\"")+ftpenabledyes+F("><br>"
-  "Disabled <INPUT type=\"radio\" name=\"ftpenabled\" value=\"0\"")+ftpenabledno+F("><br>"
-  "FTP Username: <input type=\"text\" name=\"ftp_username\" value=\"")+ftp_username+F("\" maxlength=\"31\" size=\"31\"><br>"
-  "FTP Password: <input type=\"password\" name=\"ftp_password\" value=\"")+ftp_password+F("\" maxlength=\"64\" size=\"31\"><br><br>"
+  "<h2>FTP Server Settings</h2>"
+  "<div class=\"form-group\">"
+  "<small>Changes require a reboot.</small>"
+  "<div class=\"radio-group\">"
+  "<label><INPUT type=\"radio\" name=\"ftpenabled\" value=\"1\"")+ftpenabledyes+F("> Enabled</label><br>"
+  "<label><INPUT type=\"radio\" name=\"ftpenabled\" value=\"0\"")+ftpenabledno+F("> Disabled</label>"
+  "</div></div>"
+  "<div class=\"form-group\">"
+  "<label>FTP Username</label>"
+  "<input type=\"text\" name=\"ftp_username\" value=\"")+ftp_username+F("\" maxlength=\"31\">"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>FTP Password</label>"
+  "<input type=\"password\" name=\"ftp_password\" value=\"")+ftp_password+F("\" maxlength=\"64\">"
+  "</div>"
   "<hr>"
-  "<b>Power LED:</b><br>"
-  "<small>Changes require a reboot.</small><br>"
-  "Enabled <INPUT type=\"radio\" name=\"ledenabled\" value=\"1\"")+ledenabledyes+F("><br>"
-  "Disabled <INPUT type=\"radio\" name=\"ledenabled\" value=\"0\"")+ledenabledno+F("><br><br>"
+  "<h2>Power LED</h2>"
+  "<div class=\"form-group\">"
+  "<small>Changes require a reboot.</small>"
+  "<div class=\"radio-group\">"
+  "<label><INPUT type=\"radio\" name=\"ledenabled\" value=\"1\"")+ledenabledyes+F("> Enabled</label><br>"
+  "<label><INPUT type=\"radio\" name=\"ledenabled\" value=\"0\"")+ledenabledno+F("> Disabled</label>"
+  "</div></div>"
   "<hr>"
-  "<b>RFID Capture Log:</b><br>"
-  "<small>Useful to change this value to differentiate between facilities during various security assessments.</small><br>"
-  "File Name: <input type=\"text\" name=\"logname\" value=\"")+logname+F("\" maxlength=\"30\" size=\"31\"><br>"
+  "<h2>RFID Capture Log</h2>"
+  "<div class=\"form-group\">"
+  "<label>File Name</label>"
+  "<small>Useful to change this value to differentiate between facilities during various security assessments.</small>"
+  "<input type=\"text\" name=\"logname\" value=\"")+logname+F("\" maxlength=\"30\">"
+  "</div>"
   "<hr>"
-  "<b>Experimental Settings:</b><br>"
-  "<small>Changes require a reboot.</small><br>"
-  "<small>Default Buffer Length is 256 bits with an allowed range of 52-4096 bits."
-  "<br>Default Experimental TX mode timing is 40us Wiegand Data Pulse Width and a 2ms Wiegand Data Interval with an allowed range of 0-1000."
-  "<br>Changing these settings may result in unstable performance.</small><br>"
-  "Wiegand RX Buffer Length: <input type=\"number\" name=\"bufferlength\" value=\"")+bufferlength+F("\" maxlength=\"30\" size=\"31\" min=\"52\" max=\"4096\"> bit(s)<br>"
-  "Wiegand RX Packet Length: <input type=\"number\" name=\"rxpacketgap\" value=\"")+rxpacketgap+F("\" maxlength=\"30\" size=\"31\" min=\"1\" max=\"4096\"> millisecond(s)<br>"
-  "Experimental TX Wiegand Data Pulse Width: <input type=\"number\" name=\"txdelayus\" value=\"")+txdelayus+F("\" maxlength=\"30\" size=\"31\" min=\"0\" max=\"1000\"> microsecond(s)<br>"
-  "Experimental TX Wiegand Data Interval: <input type=\"number\" name=\"txdelayms\" value=\"")+txdelayms+F("\" maxlength=\"30\" size=\"31\" min=\"0\" max=\"1000\"> millisecond(s)<br>"
+  "<h2>Experimental Settings</h2>"
+  "<div class=\"form-group\">"
+  "<small>Changes require a reboot.</small>"
+  "<small>Default Buffer Length is 256 bits with an allowed range of 52-4096 bits. Default Experimental TX mode timing is 40us Wiegand Data Pulse Width and a 2ms Wiegand Data Interval with an allowed range of 0-1000. Changing these settings may result in unstable performance.</small>"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Wiegand RX Buffer Length</label>"
+  "<input type=\"number\" name=\"bufferlength\" value=\"")+bufferlength+F("\" min=\"52\" max=\"4096\"> <small>bit(s)</small>"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Wiegand RX Packet Length</label>"
+  "<input type=\"number\" name=\"rxpacketgap\" value=\"")+rxpacketgap+F("\" min=\"1\" max=\"4096\"> <small>millisecond(s)</small>"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Experimental TX Wiegand Data Pulse Width</label>"
+  "<input type=\"number\" name=\"txdelayus\" value=\"")+txdelayus+F("\" min=\"0\" max=\"1000\"> <small>microsecond(s)</small>"
+  "</div>"
+  "<div class=\"form-group\">"
+  "<label>Experimental TX Wiegand Data Interval</label>"
+  "<input type=\"number\" name=\"txdelayms\" value=\"")+txdelayms+F("\" min=\"0\" max=\"1000\"> <small>millisecond(s)</small>"
+  "</div>"
   "<hr>"
-  "<b>Safe Mode:</b><br>"
-  "<small>Enable to reboot the device after every capture.<br>Disable to avoid missing quick consecutive captures such as keypad entries.</small><br>"
-  "Enabled <INPUT type=\"radio\" name=\"safemode\" value=\"1\"")+safemodeyes+F("><br>"
-  "Disabled <INPUT type=\"radio\" name=\"safemode\" value=\"0\"")+safemodeno+F("><br><br>"
+  "<h2>Safe Mode</h2>"
+  "<div class=\"form-group\">"
+  "<small>Enable to reboot the device after every capture. Disable to avoid missing quick consecutive captures such as keypad entries.</small>"
+  "<div class=\"radio-group\">"
+  "<label><INPUT type=\"radio\" name=\"safemode\" value=\"1\"")+safemodeyes+F("> Enabled</label><br>"
+  "<label><INPUT type=\"radio\" name=\"safemode\" value=\"0\"")+safemodeno+F("> Disabled</label>"
+  "</div></div>"
   "<hr>"
   "<INPUT type=\"radio\" name=\"SETTINGS\" value=\"1\" hidden=\"1\" checked=\"checked\">"
   "<INPUT type=\"submit\" value=\"Apply Settings\">"
   "</FORM>"
-  "<br><a href=\"/reboot\"><button>Reboot Device</button></a>"
-  "</P>"
+  "<br><br><a href=\"/reboot\" class=\"btn btn-secondary\">Reboot Device</a>"
+  "</div>"
   "</body>"
   "</html>"
   )
@@ -785,7 +839,7 @@ void handleSubmitSettings()
   
   if (SETTINGSvalue == "1") {
     saveConfig();
-    server.send(200, "text/html", F("<a href=\"/\"><- BACK TO INDEX</a><br><br><a href=\"/reboot\"><button>Reboot Device</button></a><br><br>Settings have been saved.<br>Some setting may require manually rebooting before taking effect.<br>If network configuration has changed then be sure to connect to the new network first in order to access the web interface."));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:800px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}.info-section{background:#d4edda;border-left:4px solid #28a745;padding:15px;margin:20px 0;border-radius:4px;color:#155724}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/reboot\" class=\"btn btn-primary\">Reboot Device</a><div class=\"info-section\"><p><strong>Settings have been saved.</strong></p><p>Some setting may require manually rebooting before taking effect. If network configuration has changed then be sure to connect to the new network first in order to access the web interface.</p></div></div></body></html>"));
     delay(50);
     loadConfig();
   }
@@ -798,8 +852,7 @@ void handleSubmitSettings()
 }
 
 bool loadDefaults() {
-  StaticJsonBuffer<500> jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
+  StaticJsonDocument<500> json;
   json["version"] = version;
   json["accesspointmode"] = "1";
   json["ssid"] = "ESP-RFID-Tool";
@@ -822,10 +875,11 @@ bool loadDefaults() {
   json["txdelayms"] = "2";
   json["safemode"] = "0";
   File configFile = SPIFFS.open("/esprfidtool.json", "w");
-  json.printTo(configFile);
+  serializeJson(json, configFile);
   configFile.close();
-  jsonBuffer.clear();
+  json.clear();
   loadConfig();
+  return true;
 }
 
 bool loadConfig() {
@@ -839,8 +893,8 @@ bool loadConfig() {
 
   std::unique_ptr<char[]> buf(new char[size]);
   configFile.readBytes(buf.get(), size);
-  StaticJsonBuffer<500> jsonBuffer;
-  JsonObject& json = jsonBuffer.parseObject(buf.get());
+  StaticJsonDocument<500> json;
+  deserializeJson(json, buf.get());
   
   if (!json["version"]) {
     delay(3500);
@@ -885,60 +939,29 @@ bool loadConfig() {
   IPAddress subnet;
   subnet.fromString(subnetstr);
 
-/*
-  Serial.println(accesspointmode);
-  Serial.println(ssid);
-  Serial.println(password);
-  Serial.println(channel);
-  Serial.println(hidden);
-  Serial.println(local_IP);
-  Serial.println(gateway);
-  Serial.println(subnet);
-*/
   WiFi.persistent(false);
-  //ESP.eraseConfig();
-// Determine if set to Access point mode
+
   if (accesspointmode == 1) {
     WiFi.disconnect(true);
     WiFi.mode(WIFI_AP);
-
-//    Serial.print("Starting Access Point ... ");
-//    Serial.println(WiFi.softAP(ssid, password, channel, hidden) ? "Success" : "Failed!");
     WiFi.softAP(ssid, password, channel, hidden);
-
-//    Serial.print("Setting up Network Configuration ... ");
-//    Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Success" : "Failed!");
     WiFi.softAPConfig(local_IP, gateway, subnet);
-
-//    WiFi.reconnect();
-
-//    Serial.print("IP address = ");
-//    Serial.println(WiFi.softAPIP());
   }
 // or Join existing network
   else if (accesspointmode != 1) {
     WiFi.disconnect(true);
     WiFi.mode(WIFI_STA);
-//    Serial.print("Setting up Network Configuration ... ");
     WiFi.config(local_IP, gateway, subnet);
-//    WiFi.config(local_IP, gateway, subnet);
-
-//    Serial.print("Connecting to network ... ");
-//    WiFi.begin(ssid, password);
     WiFi.begin(ssid, password);
     WiFi.reconnect();
-
-//    Serial.print("IP address = ");
-//    Serial.println(WiFi.localIP());
   }
   configFile.close();
-  jsonBuffer.clear();
+  json.clear();
   return true;
 }
 
 bool saveConfig() {
-  StaticJsonBuffer<500> jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
+  StaticJsonDocument<500> json;
   json["version"] = version;
   json["accesspointmode"] = accesspointmode;
   json["ssid"] = ssid;
@@ -962,9 +985,9 @@ bool saveConfig() {
   json["safemode"] = safemode;
 
   File configFile = SPIFFS.open("/esprfidtool.json", "w");
-  json.printTo(configFile);
+  serializeJson(json, configFile);
   configFile.close();
-  jsonBuffer.clear();
+  json.clear();
   return true;
 }
 
@@ -983,15 +1006,15 @@ void ListLogs(){
   String freespace;
   freespace=fs_info.totalBytes-fs_info.usedBytes;
   Dir dir = SPIFFS.openDir(directory);
-  String FileList = String()+F("<a href=\"/\"><- BACK TO INDEX</a><br><br>File System Info Calculated in Bytes<br><b>Total:</b> ")+total+" <b>Free:</b> "+freespace+" "+" <b>Used:</b> "+used+"<br><br><small>NOTE: Larger log files will need to be downloaded instead of viewed from the browser.</small><br><table border='1'><tr><td><b>Display File Contents</b></td><td><b>Size in Bytes</b></td><td><b>Download File</b></td><td><b>Delete File</b></td></tr>";
+  String FileList = String()+F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:1000px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#f8f9fa;border-left:4px solid #007bff;padding:15px;margin:20px 0;border-radius:4px}.btn{display:inline-block;padding:8px 16px;margin:4px;text-decoration:none;border-radius:4px;font-size:14px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{padding:12px;text-align:left;border-bottom:1px solid #dee2e6}th{background:#f8f9fa;font-weight:600;color:#495057}tr:hover{background:#f8f9fa}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><div class=\"info-section\"><p><strong>File System Info (Bytes)</strong></p><p>Total: ")+total+F(" | Free: ")+freespace+F(" | Used: ")+used+F("</p><p><small>NOTE: Larger log files will need to be downloaded instead of viewed from the browser.</small></p></div><table><tr><th>Display File Contents</th><th>Size in Bytes</th><th>Download File</th><th>Delete File</th></tr>");
   while (dir.next()) {
     String FileName = dir.fileName();
     File f = dir.openFile("r");
     FileList += " ";
-    if((!FileName.startsWith("/payloads/"))&&(!FileName.startsWith("/esploit.json"))&&(!FileName.startsWith("/esportal.json"))&&(!FileName.startsWith("/esprfidtool.json"))&&(!FileName.startsWith("/config.json"))) FileList += "<tr><td><a href=\"/viewlog?payload="+FileName+"\">"+FileName+"</a></td>"+"<td>"+f.size()+"</td><td><a href=\""+FileName+"\"><button>Download File</button></td><td><a href=\"/deletelog?payload="+FileName+"\"><button>Delete File</button></td></tr>";
+    if((!FileName.startsWith("/payloads/"))&&(!FileName.startsWith("/esploit.json"))&&(!FileName.startsWith("/esportal.json"))&&(!FileName.startsWith("/esprfidtool.json"))&&(!FileName.startsWith("/config.json"))) FileList += "<tr><td><a href=\"/viewlog?payload="+FileName+"\" style=\"color:#007bff;text-decoration:none\">"+FileName+"</a></td>"+"<td>"+f.size()+"</td><td><a href=\""+FileName+"\" class=\"btn btn-primary\">Download</a></td><td><a href=\"/deletelog?payload="+FileName+"\" class=\"btn btn-danger\">Delete</a></td></tr>";
     f.close();
   }
-  FileList += "</table>";
+  FileList += "</table></div></body></html>";
   server.send(200, "text/html", FileList);
 }
 
@@ -1016,27 +1039,36 @@ void ViewLog(){
   String webString = f.readString();
   f.close();
   ShowPL = String()+F(
-    "<html><head></head><body>"
-    "<a href=\"/\"><- BACK TO INDEX</a><br><br>"
-    "<a href=\"/logs\">List Exfiltrated Data</a> - <a href=\"/experimental\">Experimental TX Mode</a> - <a href=\"/data-convert\">Data Conversion Tools</a><br><br>"
-    "<FORM action=\"/api/tx/bin\" id=\"api_tx\" method=\"get\"  target=\"_blank\">"
-      "<small>Binary: </small><INPUT form=\"api_tx\" type=\"text\" name=\"binary\" value=\"\" pattern=\"[01,]{1,}\" required title=\"Allowed characters(0,1,\",\"), must not be empty\" minlength=\"1\" size=\"52\"> "
-      "<INPUT form=\"api_tx\" type=\"submit\" value=\"Transmit\"><br>"
-      "<small>Pulse Width: </small><INPUT form=\"api_tx\" type=\"number\" name=\"pulsewidth\" value=\"40\" minlength=\"1\" min=\"0\" size=\"8\"><small>us</small> "
-      "<small>Data Interval: </small><INPUT form=\"api_tx\" type=\"number\" name=\"interval\" value=\"2000\" minlength=\"1\" min=\"0\" size=\"8\"><small>us</small> "
-      "<small>Delay Between Packets: </small><INPUT form=\"api_tx\" type=\"number\" name=\"wait\" value=\"100000\" minlength=\"1\" min=\"0\" size=\"8\"><small>us</small><br>"
+    "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:1200px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}h1{color:#2c3e50;margin-bottom:25px;font-size:28px;font-weight:600}h2{color:#34495e;margin:25px 0 15px;font-size:20px;font-weight:500;padding-bottom:10px;border-bottom:2px solid #e9ecef}.form-group{margin:20px 0}.form-group label{display:block;margin-bottom:8px;font-weight:500;color:#495057;font-size:15px}.form-group small{display:block;color:#6c757d;font-size:13px;margin-top:5px;margin-bottom:10px}input[type=\"text\"],input[type=\"password\"],input[type=\"number\"],select{width:100%;max-width:600px;padding:10px 12px;border:1px solid #ced4da;border-radius:6px;font-size:15px;font-family:inherit;transition:border-color 0.3s,box-shadow 0.3s}input[type=\"text\"]:focus,input[type=\"password\"]:focus,input[type=\"number\"]:focus,select:focus{outline:none;border-color:#007bff;box-shadow:0 0 0 3px rgba(0,123,255,0.1)}input[type=\"submit\"]{background:#28a745;color:#fff;padding:12px 30px;border:none;border-radius:6px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.3s;font-family:inherit;margin-top:10px}input[type=\"submit\"]:hover{background:#218838;transform:translateY(-1px);box-shadow:0 4px 8px rgba(40,167,69,0.3)}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}pre{background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:15px;overflow-x:auto;font-family:monospace;font-size:13px;line-height:1.5;margin:20px 0}hr{margin:30px 0;border:none;border-top:1px solid #e9ecef}</style></head><body><div class=\"container\"><h1>View Log File</h1><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/logs\" class=\"btn btn-primary\">List Exfiltrated Data</a> <a href=\"/experimental\" class=\"btn btn-primary\">Experimental TX Mode</a> <a href=\"/data-convert\" class=\"btn btn-primary\">Data Conversion Tools</a><hr><h2>Transmit Binary Data</h2><FORM action=\"/api/tx/bin\" id=\"api_tx\" method=\"get\" target=\"_blank\">"
+      "<div class=\"form-group\">"
+      "<label>Binary Data</label>"
+      "<small>Use commas to separate the binary for transmitting multiple packets (useful for sending multiple keypresses for imitating keypads)</small>"
+      "<INPUT form=\"api_tx\" type=\"text\" name=\"binary\" value=\"\" pattern=\"[01,]{1,}\" required title=\"Allowed characters (0,1, comma), must not be empty\" minlength=\"1\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Pulse Width</label>"
+      "<INPUT form=\"api_tx\" type=\"number\" name=\"pulsewidth\" value=\"40\" min=\"0\" style=\"max-width:200px\"> <small>us</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Data Interval</label>"
+      "<INPUT form=\"api_tx\" type=\"number\" name=\"interval\" value=\"2000\" min=\"0\" style=\"max-width:200px\"> <small>us</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Delay Between Packets</label>"
+      "<INPUT form=\"api_tx\" type=\"number\" name=\"wait\" value=\"100000\" min=\"0\" style=\"max-width:200px\"> <small>us</small>"
+      "</div>"
       "<INPUT form=\"api_tx\" type=\"hidden\" name=\"prettify\" id=\"prettify\" value=\"1\">"
+      "<INPUT form=\"api_tx\" type=\"submit\" value=\"Transmit\">"
     "</FORM>"
-    "<small>Use commas to separate the binary for transmitting multiple packets(useful for sending multiple keypresses for imitating keypads)</small><br>"
     "<hr>"
-    "<a href=\"")+payload+F("\"><button>Download File</button><a><small> - </small><a href=\"/deletelog?payload=")+payload+F("\"><button>Delete File</button></a>"
+    "<a href=\"")+payload+F("\" class=\"btn btn-primary\">Download File</a> <a href=\"/deletelog?payload=")+payload+F("\" class=\"btn btn-danger\">Delete File</a>"
     "<pre>")
     +payload+
     F("\n"
     "Note: Preambles shown are only a guess based on card length and may not be accurate for every card format.\n"
     "-----\n")
     +webString+
-    F("</pre></body></html>")
+    F("</pre></div></body></html>")
     ;
   webString="";
   server.send(200, "text/html", ShowPL);
@@ -1073,29 +1105,10 @@ void setup() {
   server.on("/",[]() {
     FSInfo fs_info;
     SPIFFS.info(fs_info);
-    String total;
-    total=fs_info.totalBytes;
-    String used;
-    used=fs_info.usedBytes;
-    String freespace;
-    freespace=fs_info.totalBytes-fs_info.usedBytes;
-    server.send(200, "text/html", String()+F("<html><body><b>ESP-RFID-Tool v")+version+F("</b><br>"
-    "<img width='86' height='86' src='data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ3JlYXRlZCB3aXRoIElua3NjYXBlIChodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy8pIC0tPgoKPHN2ZwogICB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iCiAgIHhtbG5zOmNjPSJodHRwOi8vY3JlYXRpdmVjb21tb25zLm9yZy9ucyMiCiAgIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyIKICAgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIgogICB4bWxuczpzb2RpcG9kaT0iaHR0cDovL3NvZGlwb2RpLnNvdXJjZWZvcmdlLm5ldC9EVEQvc29kaXBvZGktMC5kdGQiCiAgIHhtbG5zOmlua3NjYXBlPSJodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy9uYW1lc3BhY2VzL2lua3NjYXBlIgogICB3aWR0aD0iNTYuNTkwNzI5bW0iCiAgIGhlaWdodD0iNDMuODMwODMzbW0iCiAgIHZpZXdCb3g9IjAgMCA1Ni41OTA3MjggNDMuODMwODM0IgogICB2ZXJzaW9uPSIxLjEiCiAgIGlkPSJzdmczMDAwIgogICBpbmtzY2FwZTp2ZXJzaW9uPSIwLjkyLjIgKDVjM2U4MGQsIDIwMTctMDgtMDYpIgogICBzb2RpcG9kaTpkb2NuYW1lPSJyZmlkdG9vbDQuc3ZnIj4KICA8ZGVmcwogICAgIGlkPSJkZWZzMjk5NCI+CiAgICA8ZmlsdGVyCiAgICAgICBzdHlsZT0iY29sb3ItaW50ZXJwb2xhdGlvbi1maWx0ZXJzOnNSR0I7IgogICAgICAgaW5rc2NhcGU6bGFiZWw9IkNyb3NzIEJsdXIiCiAgICAgICBpZD0iZmlsdGVyMzEyMCI+CiAgICAgIDxmZUNvbG9yTWF0cml4CiAgICAgICAgIGluPSJTb3VyY2VHcmFwaGljIgogICAgICAgICB2YWx1ZXM9IjEgMCAwIDAgMCAwIDEgMCAwIDAgMCAwIDEgMCAwIC0wLjIxMjUgLTAuNzE1NCAtMC4wNzIxIDEgMCAiCiAgICAgICAgIHJlc3VsdD0iY29sb3JtYXRyaXgiCiAgICAgICAgIGlkPSJmZUNvbG9yTWF0cml4MzExMCIgLz4KICAgICAgPGZlQ29tcG9zaXRlCiAgICAgICAgIGluPSJTb3VyY2VHcmFwaGljIgogICAgICAgICBpbjI9ImNvbG9ybWF0cml4IgogICAgICAgICBvcGVyYXRvcj0iYXJpdGhtZXRpYyIKICAgICAgICAgazI9IjEiCiAgICAgICAgIGszPSIwIgogICAgICAgICBrND0iMCIKICAgICAgICAgcmVzdWx0PSJjb21wb3NpdGUiCiAgICAgICAgIGlkPSJmZUNvbXBvc2l0ZTMxMTIiIC8+CiAgICAgIDxmZUdhdXNzaWFuQmx1cgogICAgICAgICBzdGREZXZpYXRpb249IjAuNzUgMC4wMSIKICAgICAgICAgcmVzdWx0PSJibHVyMSIKICAgICAgICAgaWQ9ImZlR2F1c3NpYW5CbHVyMzExNCIgLz4KICAgICAgPGZlR2F1c3NpYW5CbHVyCiAgICAgICAgIGluPSJjb21wb3NpdGUiCiAgICAgICAgIHN0ZERldmlhdGlvbj0iMC4wMSAwLjc1IgogICAgICAgICByZXN1bHQ9ImJsdXIyIgogICAgICAgICBpZD0iZmVHYXVzc2lhbkJsdXIzMTE2IiAvPgogICAgICA8ZmVCbGVuZAogICAgICAgICBpbj0iYmx1cjIiCiAgICAgICAgIGluMj0iYmx1cjEiCiAgICAgICAgIG1vZGU9ImRhcmtlbiIKICAgICAgICAgcmVzdWx0PSJibGVuZCIKICAgICAgICAgaWQ9ImZlQmxlbmQzMTE4IiAvPgogICAgPC9maWx0ZXI+CiAgPC9kZWZzPgogIDxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0iYmFzZSIKICAgICBwYWdlY29sb3I9IiNmZmZmZmYiCiAgICAgYm9yZGVyY29sb3I9IiM2NjY2NjYiCiAgICAgYm9yZGVyb3BhY2l0eT0iMS4wIgogICAgIGlua3NjYXBlOnBhZ2VvcGFjaXR5PSIwLjAiCiAgICAgaW5rc2NhcGU6cGFnZXNoYWRvdz0iMiIKICAgICBpbmtzY2FwZTp6b29tPSIyLjA2MTY4NDgiCiAgICAgaW5rc2NhcGU6Y3g9IjE5NC44Njc5IgogICAgIGlua3NjYXBlOmN5PSI4Ny4zNDU1MTUiCiAgICAgaW5rc2NhcGU6ZG9jdW1lbnQtdW5pdHM9Im1tIgogICAgIGlua3NjYXBlOmN1cnJlbnQtbGF5ZXI9ImxheWVyMSIKICAgICBzaG93Z3JpZD0iZmFsc2UiCiAgICAgZml0LW1hcmdpbi10b3A9IjAiCiAgICAgZml0LW1hcmdpbi1sZWZ0PSIwIgogICAgIGZpdC1tYXJnaW4tcmlnaHQ9IjAiCiAgICAgZml0LW1hcmdpbi1ib3R0b209IjAiCiAgICAgaW5rc2NhcGU6d2luZG93LXdpZHRoPSIxMzY2IgogICAgIGlua3NjYXBlOndpbmRvdy1oZWlnaHQ9IjY1OSIKICAgICBpbmtzY2FwZTp3aW5kb3cteD0iMCIKICAgICBpbmtzY2FwZTp3aW5kb3cteT0iMzEiCiAgICAgaW5rc2NhcGU6d2luZG93LW1heGltaXplZD0iMSIgLz4KICA8bWV0YWRhdGEKICAgICBpZD0ibWV0YWRhdGEyOTk3Ij4KICAgIDxyZGY6UkRGPgogICAgICA8Y2M6V29yawogICAgICAgICByZGY6YWJvdXQ9IiI+CiAgICAgICAgPGRjOmZvcm1hdD5pbWFnZS9zdmcreG1sPC9kYzpmb3JtYXQ+CiAgICAgICAgPGRjOnR5cGUKICAgICAgICAgICByZGY6cmVzb3VyY2U9Imh0dHA6Ly9wdXJsLm9yZy9kYy9kY21pdHlwZS9TdGlsbEltYWdlIiAvPgogICAgICAgIDxkYzp0aXRsZSAvPgogICAgICA8L2NjOldvcms+CiAgICA8L3JkZjpSREY+CiAgPC9tZXRhZGF0YT4KICA8ZwogICAgIGlua3NjYXBlOmxhYmVsPSJMYXllciAxIgogICAgIGlua3NjYXBlOmdyb3VwbW9kZT0ibGF5ZXIiCiAgICAgaWQ9ImxheWVyMSIKICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTgxLjkzNTEsLTIyNi4xMTMpIj4KICAgIDxwYXRoCiAgICAgICBpZD0icGF0aDM1NTYiCiAgICAgICB0cmFuc2Zvcm09Im1hdHJpeCgwLjI2NDU4MzMzLDAsMCwwLjI2NDU4MzMzLDE2Mi44OTQyMywyMTguNDkzODEpIgogICAgICAgc3R5bGU9ImZpbGw6IzAwMDAwMDtzdHJva2Utd2lkdGg6MS4wMDAwMDAxMjtmaWx0ZXI6dXJsKCNmaWx0ZXIzMTIwKSIKICAgICAgIGQ9Im0gMjI3LjkwODIsMTY2LjE0NDYyIC01LjEwMTU2LDQuNDYyODkgYyAtMjQuNDMxNTUsMjEuMzcyMTMgLTY1LjU3MjQsMjEuNzYwMjYgLTg5LjQ3MjY2LDAuODQzNzUgbCAtNS4zMjgxMiwtNC42NjIxMSAtMi4wNTY2NCwyLjA1ODYgLTIuMDU4NiwyLjA1NjY0IDMuNzU1ODYsMy4zMzc4OSBjIDEwLjgwMDY4LDkuNTk5ODUgMjQuMDYxLDE1Ljc4Mjk4IDM5LjAxMzY4LDE4LjE5MTQgNi40NjIwNCwxLjA0MDg1IDI0LjA5MTgsLTAuMjg4MjYgMzEuNDcyNjUsLTIuMzczMDQgOS45MTM0LC0yLjgwMDE0IDIxLjQ1OTMxLC04LjkxNTM3IDI4LjExOTE0LC0xNC44OTI1OCA1LjM1Nzc1LC00LjgwODU4IDUuMzkxNjQsLTQuODczNzkgMy41MzMyMSwtNi45Mzk0NSB6IG0gLTExLjEzMDg2LC0xMC4zMTA1NSBjIC0wLjg2NDc4LDAuMDgzOCAtMi4wOTk2NCwxLjA1MTExIC00Ljg1MTU2LDMuMjQyMTkgLTEwLjEwMjYsOC4wNDM4NiAtMjEuMzM5MTMsMTEuOTczMjkgLTM0LjMwNDY5LDExLjk5MjE5IC0xMy4wNDM0MSwwLjAxOTMgLTIyLjU2ODY2LC0zLjE4Njk0IC0zMy4zMTgzNiwtMTEuMjE0ODQgbCAtNS4zNTkzNywtNC4wMDE5NiAtMi4wMDE5NSwyLjAwMzkxIC0yLjAwMzkxLDIuMDAxOTUgNS4zMDI3Myw0LjE5MTQxIGMgNy42MzQ2OSw2LjAzNDg1IDE3LjU2Mzg2LDEwLjYwODU1IDI2LjkxOTkzLDEyLjQwMDM5IDEuMzc0OTksMC4yNjM0MyA2Ljk5OTk5LDAuMzU1ODggMTIuNSwwLjIwNTA4IDEyLjI3OTIzLC0wLjMzNjc2IDIxLjgwMTUyLC0zLjM3NzM4IDMxLjY0ODQzLC0xMC4xMDU0NyA4LjkwMzAyLC02LjA4MzE1IDkuNjAyNDQsLTYuOTgxOTYgNy4zNTU0NywtOS40NjQ4NSAtMC43NjQzNSwtMC44NDQ1OSAtMS4yMTQxMSwtMS4zMTUxOSAtMS44ODY3MiwtMS4yNSB6IG0gLTY2LjI2OTUzLC0xMS43OTQ5MiAtMS44MjgxMiwyLjAxOTUzIGMgLTEuNzcyODMsMS45NTg5NyAtMS43NzA2NiwyLjA4NTc1IDAuMDc2Miw0LjE1MDM5IDIuOTAwNDgsMy4yNDI2OSA4LjYwNDAzLDYuNTcyNTUgMTUuMDcwMzEsOC43OTY4OCAxMy44MjM3LDQuNzU1MjkgMzMuNjY4MzYsMC42NDA3MyA0Mi43ODEyNSwtOC44NzEwOSAyLjU0Nzg5LC0yLjY1OTQzIDIuNTU5OTUsLTIuNzM4NzYgMC42Njk5MiwtNC40NDkyMiAtMS44NDQ0NCwtMS42NjkxOSAtMi4xMTIwOSwtMS41OTY3NiAtNi40ODYzMiwxLjc0MjE4IC03LjY1NTcsNS44NDM2OCAtMTQuNjIzNTksNy45MDgwOCAtMjUuMTMwODYsNy40NDUzMiAtNy4zNDEwNiwtMC4zMjMzIC0xMC4wMTM4MiwtMC45MDY0NyAtMTQuNSwtMy4xNjYwMiAtMy4wMjQ5OSwtMS41MjM2IC02LjY1OTIzLC0zLjg3MTggLTguMDc2MTgsLTUuMjE4NzUgeiBtIDQzLjc1MzkxLC0xMS4zMDI3MyAtMy44MDA3OCwyLjYyMTA5IGMgLTcuNjkyMzIsNS4zMDI1NyAtMTcuNTkyMzYsNS4zOTA4NiAtMjUuNDQ1MzIsMC4yMjg1MiAtMy41ODg2MiwtMi4zNTkwNyAtMy42NzI2NSwtMi4zNjQ5NCAtNS4zODg2NywtMC40Njg3NSAtMi4yNDk4NywyLjQ4NjEgLTEuMDc2NTIsMy45ODExMiA1LjgxMjUsNy40MTQwNiA4Ljg1NTk3LDQuNDEzMTMgMjEuMzc3ODcsMy4wOTkzMiAyOS41LC0zLjA5NTcgbCAzLjQxNjAyLC0yLjYwNTQ3IC0yLjA0Njg4LC0yLjA0Njg4IHogbSAtMTEuNDA4MiwtMTEuMDEzNjcgYyAtMC41NzAxOSwtMC4wNjA0IC0xLjIwNzcsMC4zMDQ0NSAtMi4zNDM3NSwxLjA0ODgyIC0xLjk4MTM4LDEuMjk4MjcgLTIuOTA5MjQsMS4zNzU1OCAtNS4wMTk1NCwwLjQxNDA3IC0yLjE2NCwtMC45ODYwMSAtMi45MDkzMywtMC44OTA5IC00LjUzOTA2LDAuNTgzOTggLTEuOTI4NzMsMS43NDUzOSAtMS45MjYzLDEuNzgyNzcgMC4yNDAyNCwzLjUzNzExIDIuOTgyNjUsMi40MTUzMSAxMC4wNDIxOSwyLjM0NDg4IDEzLjA5OTYxLC0wLjEzMDg2IDIuMjk5MiwtMS44NjE3OSAyLjMxMDA1LC0xLjk1MTA4IDAuNSwtMy45NTExNyAtMC44NjU1LC0wLjk1NjM1IC0xLjM2NzMyLC0xLjQ0MTU2IC0xLjkzNzUsLTEuNTAxOTUgeiBtIC0zLjU2MjUsLTEzLjM2NzIzIGMgLTAuMzk5NjQsLTAuMDIxMyAtMC44NzkyMSwwLjA3NDggLTEuNDM3NSwwLjI4OTA2IC0xLjg1Mjk2LDAuNzExMDQgLTIuOTAyNTksNS42ODgzMiAtMS4zOTY0OSw2LjYxOTE0IDEuNzg0OTYsMS4xMDMxNyAzLjk4MzU1LC0wLjcxNTggNC4yODUxNiwtMy41NDI5NyAwLjIzMjM4LC0yLjE3OTczIC0wLjI1MjI2LC0zLjMwMTQ2IC0xLjQ1MTE3LC0zLjM2NTIzIHogbSAtMjcuODk4NDQsLTMuNjg5NDYgYyAyLjYyODAzLC0wLjEyMDQ0IDcuMzMzNTgsMS40Njg5NyA4LjQ5MDIzLDMuMDUwNzkgMi4wMzI3NSwyLjc3OTk1IDEuNjA5MTMsMTAuMDMxNTQgLTAuNzIyNjUsMTIuMzYzMjggLTEuMzMzMzEsMS4zMzMzNCAtMy4zMzMzMiwyIC02LDIgaCAtNCB2IC04LjQxNzk3IGMgMCwtNS44NDMwNyAwLjM4MjIyLC04LjU0NDkyIDEuMjUsLTguODM1OTQgMC4yNzQyMiwtMC4wOTIgMC42MDY5OCwtMC4xNDI5NSAwLjk4MjQyLC0wLjE2MDE2IHogbSA3NC40NDcyNiwtMC40NjY3OSBjIDAuODg4MjYsLTAuMDU0NSAxLjg3NTIsMC4wNTQyIDIuOTU4OTksMC4zMjYxNyA1LjM4NDczLDEuMzUxNDggNi43ODA5OSwxMi4yMjI2OCAyLjEyNjk1LDE2LjU1ODU5IC0yLjc4Njg3LDIuNTk2MzUgLTUuMDQyNjEsMi41MjI0IC04LjI5Mjk3LC0wLjI3MzQzIC0yLjE0Njc3LC0xLjg0NjU3IC0yLjYzODY3LC0zLjEzNTc3IC0yLjYzODY3LC02LjkxMDE2IDAsLTYuMTc5MTMgMS45OTY1OCwtOS40NjQ4NyA1Ljg0NTcsLTkuNzAxMTcgeiBtIC0xNDUuMzIyMjYyLC0wLjAxMTcgYyAwLjgwODE0NywwLjAyODUgMS43ODA5NCwwLjIxNjAxIDIuOTQxNDA2LDAuNTQ4ODMgMy40Mzk3NDgsMC45ODY0OSA0LjYwMTA0NSwzLjU1NDM1IDIuNjYyMTEsNS44OTA2MiAtMC42NzQyNjgsMC44MTI0OSAtMi45MTQyMzMsMS40NTMxMyAtNS4wODM5ODUsMS40NTMxMyAtMy43NzEzNjMsMCAtMy44NzY5NTMsLTAuMDk2NiAtMy44NzY5NTMsLTMuNTMxMjUgMCwtMy4xMDUxIDAuOTMyOTgyLC00LjQ0Njg1IDMuMzU3NDIyLC00LjM2MTMzIHogbSAxNzAuNDI5NjkyLC0wLjAzNTIgYyAxLjc0OTk3LC0wLjAzNDYgMy40NjAzMSwwLjU0MzUxIDQuNTQ2ODcsMS43NDQxNCAzLjYzNzA4LDQuMDE4OTYgMi44MDg5OSwxMy45NjY4NSAtMS4zNDc2NiwxNi4xOTE0MSAtMi45MjIyNSwxLjU2MzkzIC00Ljg4NjQxLDEuMTgxOTUgLTcuNTMxMjUsLTEuNDYyODkgLTMuMjUzODcsLTMuMjUzODggLTMuNTExNzMsLTExLjQ4ODI3IC0wLjQ1NTA3LC0xNC41NDQ5MyAxLjI0NjcxLC0xLjI0NjczIDMuMDM3MTMsLTEuODkzMTUgNC43ODcxMSwtMS45Mjc3MyB6IG0gMTkuNzEyODksLTIuMDcyMjcgYyAtNC44ODYyNSwwIC02LjU1NTUyLDAuMzMzODQgLTYuMjUzOTEsMS4yNSAwLjIyNjQzLDAuNjg3NSAxLjM4NzYyLDEuMzk0NTcgMi41ODIwMywxLjU3MDMxIDIuMDMxODQsMC4yOTkgMi4xNzE4OCwwLjg2MjIxIDIuMTcxODgsOC43NTAwMSAwLDguMzI1NzcgLTAuMDMxLDguNDI5NjggLTIuNSw4LjQyOTY4IC0xLjU4MDg3LDAgLTIuNSwwLjU2NDUgLTIuNSwxLjUzNTE1IDAsMS4yOTg3NiAxLjU3Nzk4LDEuNDkxMTQgMTAuMjUsMS4yNSBsIDEwLjI1LC0wLjI4NTE1IDAuMzA0NjgsLTQuNzUgYyAwLjI0MTMzLC0zLjc2MDY3IC0wLjAxOTEsLTQuNzUgLTEuMjUsLTQuNzUgLTEuMTEwMjcsMCAtMS41NTQ2OCwxLjAwMDc1IC0xLjU1NDY4LDMuNSB2IDMuNSBoIC01IC01IHYgLTguNDI5NjggYyAwLC02LjkwMTgyIDAuMTA4MTIsLTguMTk1NDEgMS40OTYwOSwtOC42MTEzMyAwLjE5ODI4LC0wLjA1OTQgMC40MjE3OSwtMC4xMDEzMSAwLjY3NTc4LC0wLjEzODY4IDEuMTk0NDEsLTAuMTc1NzQgMi4zNTc1OSwtMC44ODI4MSAyLjU4Mzk5LC0xLjU3MDMxIDAuMzAxNzIsLTAuOTE2MjcgLTEuMzY5NjUsLTEuMjUgLTYuMjU1ODYsLTEuMjUgeiBtIC02OC4wNjgzNiwwIGMgLTkuMDc5MDMsMCAtOS40MTQzMSwwLjA4MDMgLTkuOTk2MSwyLjM5ODQ0IC0wLjgyNzM3LDMuMjk2NDMgLTAuMTkwMDYsNi44NTk5NyAxLjMxNDQ2LDcuMzU1NDYgMC44NDQwNCwwLjI3Nzk2IDEuMjUsLTAuNzUyMjkgMS4yNSwtMy4xNzE4NyAwLC0zLjMxNDYgMC4yMjQ4LC0zLjU4MjAzIDMsLTMuNTgyMDMgaCAzIHYgOC41IGMgMCw4LjM5OTg1IC0wLjAyOTQsOC41IC0yLjUsOC41IC0xLjU1NTU4LDAgLTIuNSwwLjU2NjY1IC0yLjUsMS41IGggMC4wMDIgYyAwLDEuMTc5NDggMS4zODg4NywxLjUgNi41LDEuNSAxLjI3Nzc3LDAgMi4zMjI5MiwtMC4wMTk5IDMuMTcxODcsLTAuMDY4NCAyLjU0Njg4LC0wLjE0NTQzIDMuMzI4MTMsLTAuNTQ3MDMgMy4zMjgxMywtMS40MzE2NCAwLC0wLjkzMzM1IC0wLjk0NDQyLC0xLjUgLTIuNSwtMS41IC0yLjQ2OTc3LDAgLTIuNSwtMC4xIC0yLjUsLTguNSB2IC04LjUgaCAzIGMgMi43NjE4OSwwIDMsMC4yNzc3NyAzLDMuNSAwLDMuMzkzNjEgMS4yMTM0Niw0LjU3OTMyIDIuNTIxNDgsMi40NjI4OSAwLjM1MTA1LC0wLjU3MDE3IDAuMzM4ODMsLTIuODIwMiAtMC4wMjkzLC01IGwgLTAuNjY5OTIsLTMuOTYyODkgeiBtIC01MS4zNTM1MiwwIGMgLTYuNjQxMTIsMCAtOS4yNDQ5OCwxLjIzMTU5IC01LjU3ODEyLDIuNjM4NjcgMi4yMzEwNSwwLjg1NjE4IDIuMTc0NzksMTYuODg3NTUgLTAuMDYyNSwxNy43NDYwOSAtMC44NTk3MywwLjMyOTk2IC0xLjI4Mzg0LDEuMDUzNTQgLTAuOTQxNDEsMS42MDc0MyAwLjkzMzc3LDEuNTEwODYgMTEuMjA3NzgsMS4yMTE4IDE0LjM1OTM3LC0wLjQxNzk3IDMuNDgyMjcsLTEuODAwNzYgNS4xNDQ1NCwtNS40MjAyOSA1LjE0NDU0LC0xMS4xOTkyMiAwLC0zLjY3MzM2IC0wLjU1MTQ3LC01LjA4Mjc2IC0yLjkyMTg4LC03LjQ1MzEyIC0yLjY4MDAyLC0yLjY4MDA3IC0zLjUxMTQ2LC0yLjkyMTg4IC0xMCwtMi45MjE4OCB6IG0gLTIxLjA3ODEyLDAgYyAtNi4wODU1MywwIC04LjA2MTYzLDAuMzE4NTQgLTcuNzU1ODYsMS4yNSAwLjIyNTcxLDAuNjg3NSAxLjgzODg2LDEuMzkwMTYgMy41ODM5OCwxLjU2MjUgbCAzLjE3MTg4LDAuMzE0NDUgdiA4LjQzNTU1IDguNDM3NSBoIC0zLjUgYyAtMi4xMzg5LDAgLTMuMjEzNzYsMC4zNDYzNCAtMy40NDkyMiwxLjEzNDc2IC0wLjAzMzYsMC4xMTI2NCAtMC4wNTA4LDAuMjM0MjggLTAuMDUwOCwwLjM2NTI0IDAsMC45MDYxNSAwLjg3NDk5LDEuMjk2ODYgNC4wMzEyNSwxLjQzNTU0IDEuMDUyMDgsMC4wNDYyIDIuMzU3NjMsMC4wNjQ1IDMuOTY4NzUsMC4wNjQ1IDEuNjExMSwwIDIuOTE2NjcsLTAuMDE4MiAzLjk2ODc1LC0wLjA2NDUgMy4xNTYyNCwtMC4xMzg2NyA0LjAzMTI1LC0wLjUyOTMgNC4wMzEyNSwtMS40MzU1NCAwLC0wLjEyNTAxIC0wLjAxNTYsLTAuMjQyMTggLTAuMDQ2OSwtMC4zNTE1NiAtMC4yMTg3NSwtMC43NjU2NSAtMS4yMDMxMSwtMS4xNDg0NCAtMi45NTMxMiwtMS4xNDg0NCBoIC0zIHYgLTguNDMzNiBjIDAsLTguMzk1ODcgMC4wMTMsLTguNDM0NzggMi42NzM4MiwtOC43NDk5OSAxLjQ3MDA5LC0wLjE3NDAxIDIuODU2NCwtMC44Nzg5MSAzLjA4MjA0LC0xLjU2NjQxIDAuMzA1ODcsLTAuOTMxMzkgLTEuNjcwMywtMS4yNSAtNy43NTU4NiwtMS4yNSB6IG0gLTIzLjkzOTQ2LDAgYyAtNi4yNDQzNDMsMCAtMTAuMDYwNTQ0LDAuMzkxMDggLTEwLjA2MDU0NCwxLjAzMTI1IDAsMC41NjcyNyAwLjY3NTAwNSwxLjI5MDcgMS41LDEuNjA3NDIgMS4xNjg1MTcsMC40NDg0MSAxLjUsMi40MzA3NyAxLjUsOC45Njg3NiAwLDYuNzkzNzcgLTAuMjg1ODI3LDguMzkyNTcgLTEuNSw4LjM5MjU3IC0wLjcyMTg3MSwwIC0xLjMyODI2NywwLjUxNzMxIC0xLjQ2ODc1LDEuMTk5MjIgLTAuMDIwMDcsMC4wOTc0IC0wLjAzMTI1LDAuMTk3NjUgLTAuMDMxMjUsMC4zMDA3OCAwLDEuMTY2NjIgMS4zMzMzNDIsMS41IDYuMDAwMDA0LDEuNSAxLjE2NjY3LDAgMi4xMjQ5OSwtMC4wMjA4IDIuOTA2MjUsLTAuMDcwMyAyLjM0Mzc1LC0wLjE0ODQ0IDMuMDkzNzUsLTAuNTU0NjkgMy4wOTM3NSwtMS40Mjk2OSAwLC0wLjEyNTc4IC0wLjAxNTMsLTAuMjQzNyAtMC4wNDY5LC0wLjM1MzUyIC0wLjIyMDY3LC0wLjc2ODY0IC0xLjIxNTA0LC0xLjE0NjQ4IC0zLjAwOTc2LC0xLjE0NjQ4IC0wLjM3MjM0LDAgLTAuNjk5OTEsLTAuMDAzIC0wLjk4NjMzLC0wLjAxMzcgLTAuMjg2NDMsLTAuMDExMSAtMC41MzE3NiwtMC4wMzA5IC0wLjc0MjE5LC0wLjA2ODQgLTAuMjEwNDMsLTAuMDM3NSAtMC4zODQ5NiwtMC4wOTI3IC0wLjUyOTMsLTAuMTcxODkgLTAuNzIxNjgsLTAuMzk2MDEgLTAuNjc5NTEsLTEuNDA4MzcgLTAuNDkyMTgsLTMuOTk2MDggMC4yNTU3OSwtMy41MzU3NiAwLjY4NDk1LC00LjMwMzg2IDIuNTYwNTQsLTQuNTcwMzIgMS4zNTIyOCwtMC4xOTIwNCAyLjQ5NjEsMC4zMDgxOCAyLjg1NzQyLDEuMjUgMC4zMzEzOSwwLjg2MzU4IDEuMDA0OTUsMS41NzAzMiAxLjQ5NjEsMS41NzAzMiAxLjIyODQ2LDAgMS4xMzE5MiwtNi43MzQwNCAtMC4xMDc0MiwtNy41IC0wLjU1LC0wLjMzOTkzIC0xLDAuMDgzOSAtMSwwLjk0MTQgMCwwLjY2NiAtMC4zNzE2MSwxLjEwNzUgLTEuMTUwMzksMS4zNDU3MSAtMC4xNTU3NiwwLjA0NzYgLTAuMzI2OTUsMC4wODc3IC0wLjUxNTYzLDAuMTE5MTQgLTAuMzc3MzcsMC4wNjI5IC0wLjgyMTM3LDAuMDkzNyAtMS4zMzM5OCwwLjA5MzcgLTIuNjY2NjUsMCAtMywtMC4zMzMzMiAtMywtMyAwLC0yLjk2NTk5IDAuMDY0NSwtMy4wMDAwMSA1LjQzMTY0LC0zLjAwMDAxIDQuNjk0NDcsMCA1LjQ3MTc2LDAuMjc1ODggNS43NDgwNCwyLjAzOTA3IDAuNTQ4NzUsMy41MDI0OSAyLjMwNTQ1LDIuNjQyMDYgMi42MzA4NiwtMS4yODkwNyBsIDAuMzEwNTUsLTMuNzUgeiBNIDc1Ljc5ODgyOCwxMDIuMDQzIGMgLTIuNjM2NjcxLDAuMDcxNCAtNC42Mzg2NzIsMC40MDE2NCAtNC42Mzg2NzIsMS4wMzcxMSAwLDAuNTUgMC42NzQ5NjcsMSAxLjUsMSAxLjIyMDY3NCwwIDEuNSwxLjY1NDM3IDEuNSw4Ljg5MjU5IDAsNi45ODI0MSAtMC4zMjIyOTksOS4wMTY4MyAtMS41LDkuNDY4NzUgLTAuODI1MDMzLDAuMzE2NTcgLTEuNSwxLjA0MDE5IC0xLjUsMS42MDc0MiB2IDAuMDAyIGMgMCwxLjM2NTI0IDguNjk0MDk5LDEuMzMxMjMgOS41NDEwMTYsLTAuMDM5MSAwLjM2MzIxMiwtMC41ODc3MyAtMC4yODI3NjcsLTEuMzEyODggLTEuNDM5NDUzLC0xLjYxNTI0IC0xLjYxMjAwNywtMC40MjE1NCAtMi4xMDE1NjMsLTEuMzM3MjEgLTIuMTAxNTYzLC0zLjkzMzU5IDAsLTIuOTQyODUgMC4zMjYwMDQsLTMuMzgyODIgMi41MDE5NTMsLTMuMzgyODIgMS44NTYzNTMsMCAzLjQyODE2MywxLjI4OTcxIDYuMDkzNzUsNSAzLjUwMzQ3MSw0Ljg3NjYxIDcuNDA0Mjk3LDYuNzIwNTMgNy40MDQyOTcsMy41IDAsLTAuODI1MDIgLTAuNTYyNDY2LC0xLjUwNjExIC0xLjI1LC0xLjUxMzY3IC0wLjY4NzQ5NiwtMC4wMDcgLTIuMjk2Njg4LC0xLjYyNzA3IC0zLjU3NjE3MiwtMy42MDE1NyBsIC0yLjMyNjE3MiwtMy41ODk4MyAyLjA3NjE3MiwtMS40NTUwOCBjIDIuOTE5NDU5LC0yLjA0NDk1IDIuODM0ODA3LC03LjY5NTAyIC0wLjE0NjQ4NCwtOS43ODMyMSAtMS41ODczMDcsLTEuMTExNzcgLTcuNzQ0MjIsLTEuNzEyNzEgLTEyLjEzODY3MiwtMS41OTM3NSB6IG0gMTc1LjEzMDg2MiwtMC41OTE3OSBjIC00LjE3MTE1LC0wLjAzMzcgLTguMjU1NjEsMi41NDE3OSAtOS43NjU2Myw3LjExNzE5IC0xLjU1MDM2LDQuNjk3NzMgLTAuNTgxNzQsOS42NzE0MSAyLjYyNSwxMy40ODI0MiAyLjA1MDk2LDIuNDM3NDIgMy4zMjU3MiwzLjAyOTMgNi41MjUzOSwzLjAyOTMgMi4xODcyNSwwIDQuODQyMjQsLTAuNDYyOTcgNS45MDAzOSwtMS4wMjkzIDUuNDc5MywtMi45MzI0MiA2LjU1ODI5LC0xNC44MTI4NSAxLjc3OTMsLTE5LjU5MTc5IC0yLjAyODkxLC0yLjAyODkyIC00LjU2MTc3LC0yLjk4NzYyIC03LjA2NDQ1LC0zLjAwNzgyIHogbSAtMjQuNjA3NDIsLTAuMjY1NjIgYyAtMS40NjczMSwwLjA2NjIgLTIuOTMxOTYsMC42NzU1OSAtNC44NTc0MywxLjg0OTYxIC02LjAyMDg2LDMuNjcxMTYgLTYuOTA5NDUsMTQuMTY2NzIgLTEuNjQ0NTMsMTkuNDMxNjQgMi44MTc2NCwyLjgxNzYzIDguNjg2NDQsMy41Njg1IDEyLjM5NDUzLDEuNTgzOTggNi45NTg0OSwtMy43MjQwNCA2LjI5NDg5LC0xNy42NzE2MiAtMS4wMjE0OCwtMjEuNDU1MDggLTEuOTMzNTcsLTAuOTk5ODcgLTMuNDAzNzksLTEuNDc2MzYgLTQuODcxMDksLTEuNDEwMTUgeiBtIC00Ny40OTgwNSwtNi4wNjY0NDkgYyAtMi42Nzk4MiwwLjA3MDk0IC01LjM2MDM3LDAuNzAzNTk2IC02Ljc5NDkyLDEuODY1MjM0IC0wLjI4NzQsMC4yMzI3MiAtMC41MzkwNSwwLjQzODUzNCAtMC43NTU4NiwwLjYyMzA0NyAtMC4yMTY4MSwwLjE4NDUxMyAtMC4zOTg4MywwLjM0OTMwMyAtMC41NDY4OCwwLjUgLTAuODg4MjgsMC45MDQxODMgLTAuNTU0OCwxLjMyODA4NyAwLjgwMjc0LDIuODI4MTI4IDEuNzMwOTgsMS45MTI3NCAyLjAxMTA2LDEuOTQxODggNC4yODMyLDAuNDUzMTIgMS45OTQ3NiwtMS4zMDcwMyAyLjkwMTEsLTEuMzc2NjggNS4wNTY2NCwtMC4zOTQ1MyAyLjI2NTE4LDEuMDMyMDggMi45MDcwOSwwLjkxNTE4IDQuNjY3OTcsLTAuODQ1NyAyLjAyMzc1LC0yLjAyMzU5OSAyLjAyMzczLC0yLjA1NTI0NSAwLjA4MiwtMy41MjM0NCAtMS40MzU4LC0xLjA4NTU5NCAtNC4xMTUxLC0xLjU3NjgwMSAtNi43OTQ5MiwtMS41MDU4NTkgeiBtIDAuMzI2MTcsLTE2LjA5MTc5NyBjIC00LjAzMTMzLDAuMDAzMiAtOC4wNjAxMiwwLjgxMDc1NyAtMTEuNDkwMjMsMi40MjE4NzUgLTYuNTEyMDMsMy4wNTg3MDUgLTkuMjUyMTUsNi4wMTgzMjcgLTcuNTE1NjMsOC4xMTMyODEgMS40NDc1OSwxLjc0MzIzOSAzLjYxMDQxLDEuOTgyNDU2IDQuNTI1MzksMC41MDE5NTMgMC4xNzIzOSwtMC4yNzg5MjkgMC43ODc5NSwtMC43NjYyNTEgMS42NDI1OCwtMS4zMjgxMjUgMC40MjczMSwtMC4yODA5MzcgMC45MTUwMywtMC41ODAwNDMgMS40MzU1NSwtMC44ODA4NTkgMC41MjA1MSwtMC4zMDA4MTYgMS4wNzQ1NywtMC42MDM4MzUgMS42MzY3MiwtMC44OTA2MjUgNy4yMTU4MywtMy42ODEyMjIgMTcuOTIwMTYsLTIuNDUxNjAyIDIzLjg2MzI4LDIuNzQyMTg3IDEuMzcwMywxLjE5NzU0NCAxLjgzNDgzLDEuMTE1NDAyIDMuMzg4NjcsLTAuNjAxNTYyIDIuMzUzOTYsLTIuNjAxMTA5IDAuODk2OTIsLTQuNDcxMjcxIC01Ljk3NjU2LC03LjY3NTc4MSAtMy40NDQ1NywtMS42MDUxNjYgLTcuNDc4NDQsLTIuNDA1NTggLTExLjUwOTc3LC0yLjQwMjM0NCB6IG0gLTAuMjI0MzgsLTE1LjkyNTc4MiBjIC0xMC4yMDc4NiwwLjA2NDM5IC0yMC40Mzk1MywzLjYyNTYwNCAtMjguNzIwNywxMC41OTM3NSAtMi45NzQzNCwyLjUwMjcyOCAtMy4wNDQ1MiwyLjcyNzYwNSAtMS40MzE2NCw0LjUwOTc2NiAwLjkzMzUsMS4wMzE1NDcgMS45MDA1LDEuODc1IDIuMTQ4NDQsMS44NzUgMC4yNDgxMiwwIDIuMjM1LC0xLjQxMzIzIDQuNDE2MDEsLTMuMTQwNjI1IDEyLjk4NjM4LC0xMC4yODU0MTcgMzMuNzQwODksLTEwLjY4NzM4NyA0NS45MzE2NCwtMC44OTA2MjUgNC40Mjc0OSwzLjU1ODA0NyA1LjAyMDcyLDMuNjUwMTI5IDcuMjk4ODMsMS4xMzI4MTMgMS42NTIwMywtMS44MjU0NzQgMS40OTY2OSwtMi4wNTkwOSAtNC4wMzEyNSwtNi4wMTc1NzkgLTcuNjE0ODcsLTUuNDUyODgzIC0xNi42MDQzOSwtOC4xMTkzMTQgLTI1LjYxMTMzLC04LjA2MjUgeiBtIDEuNjM4NjgsLTE1Ljk1MzEyNCBjIC0xNC42MjEyOSwtMC4wMDMgLTMwLjQ5MTc5LDUuMzkwNTIzIC00MC44MTQ0NSwxNC40Nzg1MTUgLTMuODE4LDMuMzYxMzIzIC0zLjg2ODA0LDMuNDg4ODY2IC0yLjA5NTcsNS40NDcyNjYgMC45OTgyOCwxLjEwMzA5MyAyLjAxNDc5LDIuMDA1ODU5IDIuMjU3ODEsMi4wMDU4NTkgMC4yNDI4NywwIDIuMzc4MTgsLTEuNzA0NzI5IDQuNzQ2MDksLTMuNzg5MDYyIDguNzgyMzQsLTcuNzMwNTMzIDIxLjY0NTI3LC0xMi4yMTgxMTcgMzQuOTYyODksLTEyLjE5OTIxOSAxMi43MTgwOCwwLjAxODc4IDIzLjg5Mjg5LDMuOTM5MTA3IDMzLjM3NSwxMS43MDg5ODQgNC4zMzAxMywzLjU0ODIyMSA0LjMzODI4LDMuNTUwMzkzIDYuMzI4MTMsMS41NjA1NDcgMS45ODk4OCwtMS45ODk4ODMgMS45ODYzMywtMS45OTU5NDIgLTIuMzM1OTQsLTUuNzI2NTYyIC01LjgwODQxLC01LjAxMzM5MyAtMTYuMzQ3NTIsLTEwLjIzMzE4IC0yNC41ODM5OCwtMTIuMTc1NzgyIC0zLjc0ODg2LC0wLjg4NDE3NCAtNy43NDU4OCwtMS4zMDk3MDYgLTExLjgzOTg1LC0xLjMxMDU0NiB6IG0gLTEuNTUyNzMsLTE1LjkwMjM0NCBjIC0xMC43MTM4MywwLjA0MDk4IC0yMS41MjcwNSwyLjMwNjg4NyAtMzEuNjYyMTEsNi45MDIzNDQgLTYuNjU3MjYsMy4wMTg1MTkgLTE3LjMxNjQ1LDEwLjE2OTY2NSAtMjAuNTkzNzUsMTMuODE0NDUzIC0xLjgxNDEsMi4wMTc1NDkgLTEuODIxNDcsMi4yMDk0MDYgLTAuMTYyMTEsNC4wNDI5NjggMS43MDM1OCwxLjg4MjQzMiAxLjg3OTQzLDEuODE0MTg4IDcuOTA0MywtMy4wNTY2NCAyNS44MTI4MSwtMjAuODY4Mzk3IDYzLjc4MjM0LC0yMS4wNTQwNTQgODguNjQ0NTMsLTAuNDMzNTk0IGwgNS40ODA0Nyw0LjU0Njg3NSAyLjAxOTUzLC0yLjA0Njg3NSAyLjAxNzU4LC0yLjA0ODgyOCAtNC41LC0zLjg3MzA0NyBDIDIxNC40NDk0NSwzNy4yODk5MDcgMTk2Ljg2ODExLDMxLjE3Nzc5NiAxNzkuMDExNzIsMzEuMjQ2MDk0IFoiIC8+CiAgPC9nPgo8L3N2Zz4K'><br><i>"
-    "by Corey Harding<br>"
-    "www.RFID-Tool.com<br>"
-    "www.LegacySecurityGroup.com / www.Exploit.Agency</i><br>"
-    "-----<br>"
-    "File System Info Calculated in Bytes<br>"
-    "<b>Total:</b> ")+total+" <b>Free:</b> "+freespace+" "+" <b>Used:</b> "+used+F("<br>-----<br>"
-    "<a href=\"/logs\">List Exfiltrated Data</a><br>-<br>"
-    "<a href=\"/experimental\">Experimental TX Mode</a><br>-<br>"
-    "<a href=\"/data-convert\">Data Conversion Tools</a><br>-<br>"
-    "<a href=\"/settings\">Configure Settings</a><br>-<br>"
-    "<a href=\"/format\">Format File System</a><br>-<br>"
-    "<a href=\"/firmware\">Upgrade Firmware</a><br>-<br>"
-    "<a href=\"/api/help\">API Info</a><br>-<br>"
-    "<a href=\"/help\">Help</a>"
-    "</body></html>"));
+    String total = String(fs_info.totalBytes);
+    String used = String(fs_info.usedBytes);
+    String freespace = String(fs_info.totalBytes-fs_info.usedBytes);
+    server.send(200, "text/html", String()+F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:800px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}h1{color:#2c3e50;margin-bottom:20px;font-size:28px;font-weight:600}h2{color:#34495e;margin:20px 0 15px;font-size:20px;font-weight:500}.info-section{background:#f8f9fa;border-left:4px solid #007bff;padding:15px;margin:20px 0;border-radius:4px}.info-section p{margin:5px 0}.info-section strong{color:#007bff}.button-group{margin:20px 0}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}.footer{text-align:center;color:#6c757d;font-size:14px;margin-top:30px;padding-top:20px;border-top:1px solid #e9ecef}.footer a{color:#007bff;text-decoration:none}.footer a:hover{text-decoration:underline}</style></head><body><div class=\"container\"><h1>ESP-RFID-Tool v")+version+F("</h1><div class=\"info-section\"><p><strong>by Corey Harding</strong></p><p><a href=\"http://www.RFID-Tool.com\" target=\"_blank\">www.RFID-Tool.com</a></p><p><a href=\"http://www.LegacySecurityGroup.com\" target=\"_blank\">www.LegacySecurityGroup.com</a> / <a href=\"http://www.Exploit.Agency\" target=\"_blank\">www.Exploit.Agency</a></p></div><div class=\"info-section\"><p><strong>File System Info (Bytes)</strong></p><p>Total: ")+total+F(" | Free: ")+freespace+F(" | Used: ")+used+F("</p></div><div class=\"button-group\"><a href=\"/logs\" class=\"btn btn-primary\">List Exfiltrated Data</a><a href=\"/cardbeep\" class=\"btn btn-primary\">Beep and Show When Card Recorded</a><a href=\"/experimental\" class=\"btn btn-primary\">Experimental TX Mode</a><a href=\"/data-convert\" class=\"btn btn-primary\">Data Conversion Tools</a><a href=\"/settings\" class=\"btn btn-primary\">Configure Settings</a><a href=\"/format\" class=\"btn btn-danger\">Format File System</a><a href=\"/firmware\" class=\"btn btn-primary\">Upgrade Firmware</a><a href=\"/api/help\" class=\"btn btn-primary\">API Info</a><a href=\"/help\" class=\"btn btn-primary\">Help</a></div></div></body></html>"));
   });
 
   server.onNotFound([]() {
@@ -1105,17 +1118,17 @@ void setup() {
   server.on("/settings", handleSettings);
 
   server.on("/firmware", [](){
-    server.send(200, "text/html", String()+F("<html><body style=\"height: 100%;\"><a href=\"/\"><- BACK TO INDEX</a><br><br>Open Arduino IDE.<br>Pull down \"Sketch\" Menu then select \"Export Compiled Binary\".<br>On this page click \"Browse\", select the binary you exported earlier, then click \"Update\".<br>You may need to manually reboot the device to reconnect.<br><iframe style =\"border: 0; height: 100%;\" src=\"http://")+local_IPstr+F(":1337/update\"><a href=\"http://")+local_IPstr+F(":1337/update\">Click here to Upload Firmware</a></iframe></body></html>"));
+    server.send(200, "text/html", String()+F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px;height:100vh}.container{max-width:900px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}.info-section{margin:20px 0;padding:15px;background:#f8f9fa;border-radius:4px}iframe{border:none;width:100%;height:600px;border-radius:6px;margin-top:20px}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><div class=\"info-section\"><p><strong>Firmware Upgrade Instructions:</strong></p><p>1. Open Arduino IDE</p><p>2. Pull down \"Sketch\" Menu then select \"Export Compiled Binary\"</p><p>3. On this page click \"Browse\", select the binary you exported earlier, then click \"Update\"</p><p>4. You may need to manually reboot the device to reconnect</p></div><iframe src=\"http://")+local_IPstr+F(":1337/update\"></iframe></div></body></html>"));
   });
 
   server.on("/restoredefaults", [](){
-    server.send(200, "text/html", F("<html><body>This will restore the device to the default configuration.<br><br>Are you sure?<br><br><a href=\"/restoredefaults/yes\">YES</a> - <a href=\"/\">NO</a></body></html>"));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.warning-section{background:#fff3cd;border-left:4px solid #ffc107;padding:20px;margin:20px 0;border-radius:4px;color:#856404}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><div class=\"warning-section\"><p><strong>Restore Default Configuration</strong></p><p>This will restore the device to the default configuration.</p><p><strong>Are you sure?</strong></p></div><a href=\"/restoredefaults/yes\" class=\"btn btn-danger\">YES</a><a href=\"/\" class=\"btn btn-secondary\">NO</a></div></body></html>"));
   });
 
   server.on("/restoredefaults/yes", [](){
     if(!server.authenticate(update_username, update_password))
       return server.requestAuthentication();
-    server.send(200, "text/html", F("<a href=\"/\"><- BACK TO INDEX</a><br><br>Network<br>---<br>SSID: <b>ESP-RFID-Tool</b><br><br>Administration<br>---<br>USER: <b>admin</b> PASS: <b>rfidtool</b>"));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d1ecf1;border-left:4px solid #0c5460;padding:20px;margin:20px 0;border-radius:4px;color:#0c5460}.info-section p{margin:10px 0}.info-section strong{display:block;margin-bottom:5px}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><div class=\"info-section\"><p><strong>Network</strong></p><p>SSID: <strong>ESP-RFID-Tool</strong></p><p><strong>Administration</strong></p><p>USER: <strong>admin</strong></p><p>PASS: <strong>rfidtool</strong></p></div></div></body></html>"));
     delay(50);
     loadDefaults();
     ESP.restart();
@@ -1124,7 +1137,7 @@ void setup() {
   server.on("/deletelog", [](){
     String deletelog;
     deletelog += server.arg(0);
-    server.send(200, "text/html", String()+F("<html><body>This will delete the file: ")+deletelog+F(".<br><br>Are you sure?<br><br><a href=\"/deletelog/yes?payload=")+deletelog+F("\">YES</a> - <a href=\"/\">NO</a></body></html>"));
+    server.send(200, "text/html", String()+F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.warning-section{background:#f8d7da;border-left:4px solid #dc3545;padding:20px;margin:20px 0;border-radius:4px;color:#721c24}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><div class=\"warning-section\"><p><strong>Delete File</strong></p><p>This will delete the file: ")+deletelog+F("</p><p><strong>Are you sure?</strong></p></div><a href=\"/deletelog/yes?payload=")+deletelog+F("\" class=\"btn btn-danger\">YES</a><a href=\"/\" class=\"btn btn-secondary\">NO</a></div></body></html>"));
   });
 
   server.on("/viewlog", ViewLog);
@@ -1134,13 +1147,53 @@ void setup() {
       return server.requestAuthentication();
     String deletelog;
     deletelog += server.arg(0);
-    if (!deletelog.startsWith("/payloads/")) server.send(200, "text/html", String()+F("<a href=\"/\"><- BACK TO INDEX</a><br><br><a href=\"/logs\">List Exfiltrated Data</a><br><br>Deleting file: ")+deletelog);
+    if (!deletelog.startsWith("/payloads/")) server.send(200, "text/html", String()+F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d1ecf1;border-left:4px solid #17a2b8;padding:20px;margin:20px 0;border-radius:4px;color:#0c5460}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/logs\" class=\"btn btn-primary\">List Exfiltrated Data</a><div class=\"info-section\"><p><strong>Deleting file:</strong> ")+deletelog+F("</p></div></div></body></html>"));
     delay(50);
     SPIFFS.remove(deletelog);
   });
 
+  server.on("/cardbeep", [](){
+    server.send(200, "text/html", String()+F(
+      "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Card Beeper</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:1000px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}h1{color:#2c3e50;margin-bottom:25px;font-size:28px;font-weight:600}#cards p{background:#f8f9fa;border-left:4px solid #007bff;padding:15px;margin:10px 0;border-radius:4px;font-family:monospace;font-size:13px}</style></head>\n"
+      "<body><div class=\"container\"><h1>Card Beeper</h1><div id=\"cards\"></div></div>\n"
+      "<script>\n"
+      "function beep() {\nvar snd = new Audio(\"data:audio/wav;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7xA4Tvh9Rz/y8QADBwMWgQAZG/ILNAARQ4GLTcDeIIIhxGOBAuD7hOfBB3/94gcJ3w+o5/5eIAIAAAVwWgQAVQ2ORaIQwEMAJiDg95G4nQL7mQVWI6GwRcfsZAcsKkJvxgxEjzFUgfHoSQ9Qq7KNwqHwuB13MA4a1q/DmBrHgPcmjiGoh//EwC5nGPEmS4RcfkVKOhJf+WOgoxJclFz3kgn//dBA+ya1GhurNn8zb//9NNutNuhz31f////9vt///z+IdAEAAAK4LQIAKobHItEIYCGAExBwe8jcToF9zIKrEdDYIuP2MgOWFSE34wYiR5iqQPj0JIeoVdlG4VD4XA67mAcNa1fhzA1jwHuTRxDUQ//iYBczjHiTJcIuPyKlHQkv/LHQUYkuSi57yQT//uggfZNajQ3Vmz+Zt//+mm3Wm3Q576v////+32///5/EOgAAADVghQAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQRLCgwpBGMlJkIz8jKhGvj4k6jzRnqasNKIeoh5gI7BJaC1A1AoNBjJgbyApVS4IDlZgDU5WUAxEKDNmmALHzZp0Fkz1FMTmGFl1FMEyodIavcCAUHDWrKAIA4aa2oCgILEBupZgHvAhEBcZ6joQBxS76AgccrFlczBvKLC0QI2cBoCFvfTDAo7eoOQInqDPBtvrDEZBNYN5xwNwxQRfw8ZQ5wQVLvO8OYU+mHvFLlDh05Mdg7BT6YrRPpCBznMB2r//xKJjyyOh+cImr2/4doscwD6neZjuZR4AgAABYAAAABy1xcdQtxYBYYZdifkUDgzzXaXn98Z0oi9ILU5mBjFANmRwlVJ3/6jYDAmxaiDG3/6xjQQCCKkRb/6kg/wW+kSJ5//rLobkLSiKmqP/0ikJuDaSaSf/6JiLYLEYnW/+kXg1WRVJL/9EmQ1YZIsv/6Qzwy5qk7/+tEU0nkls3/zIUMPKNX/6yZLf+kFgAfgGyLFAUwY//uQZAUABcd5UiNPVXAAAApAAAAAE0VZQKw9ISAAACgAAAAAVQIygIElVrFkBS+Jhi+EAuu+lKAkYUEIsmEAEoMeDmCETMvfSHTGkF5RWH7kz/ESHWPAq/kcCRhqBtMdokPdM7vil7RG98A2sc7zO6ZvTdM7pmOUAZTnJW+NXxqmd41dqJ6mLTXxrPpnV8avaIf5SvL7pndPvPpndJR9Kuu8fePvuiuhorgWjp7Mf/PRjxcFCPDkW31srioCExivv9lcwKEaHsf/7ow2Fl1T/9RkXgEhYElAoCLFtMArxwivDJJ+bR1HTKJdlEoTELCIqgEwVGSQ+hIm0NbK8WXcTEI0UPoa2NbG4y2K00JEWbZavJXkYaqo9CRHS55FcZTjKEk3NKoCYUnSQ0rWxrZbFKbKIhOKPZe1cJKzZSaQrIyULHDZmV5K4xySsDRKWOruanGtjLJXFEmwaIbDLX0hIPBUQPVFVkQkDoUNfSoDgQGKPekoxeGzA4DUvnn4bxzcZrtJyipKfPNy5w+9lnXwgqsiyHNeSVpemw4bWb9psYeq//uQZBoABQt4yMVxYAIAAAkQoAAAHvYpL5m6AAgAACXDAAAAD59jblTirQe9upFsmZbpMudy7Lz1X1DYsxOOSWpfPqNX2WqktK0DMvuGwlbNj44TleLPQ+Gsfb+GOWOKJoIrWb3cIMeeON6lz2umTqMXV8Mj30yWPpjoSa9ujK8SyeJP5y5mOW1D6hvLepeveEAEDo0mgCRClOEgANv3B9a6fikgUSu/DmAMATrGx7nng5p5iimPNZsfQLYB2sDLIkzRKZOHGAaUyDcpFBSLG9MCQALgAIgQs2YunOszLSAyQYPVC2YdGGeHD2dTdJk1pAHGAWDjnkcLKFymS3RQZTInzySoBwMG0QueC3gMsCEYxUqlrcxK6k1LQQcsmyYeQPdC2YfuGPASCBkcVMQQqpVJshui1tkXQJQV0OXGAZMXSOEEBRirXbVRQW7ugq7IM7rPWSZyDlM3IuNEkxzCOJ0ny2ThNkyRai1b6ev//3dzNGzNb//4uAvHT5sURcZCFcuKLhOFs8mLAAEAt4UWAAIABAAAAAB4qbHo0tIjVkUU//uQZAwABfSFz3ZqQAAAAAngwAAAE1HjMp2qAAAAACZDgAAAD5UkTE1UgZEUExqYynN1qZvqIOREEFmBcJQkwdxiFtw0qEOkGYfRDifBui9MQg4QAHAqWtAWHoCxu1Yf4VfWLPIM2mHDFsbQEVGwyqQoQcwnfHeIkNt9YnkiaS1oizycqJrx4KOQjahZxWbcZgztj2c49nKmkId44S71j0c8eV9yDK6uPRzx5X18eDvjvQ6yKo9ZSS6l//8elePK/Lf//IInrOF/FvDoADYAGBMGb7FtErm5MXMlmPAJQVgWta7Zx2go+8xJ0UiCb8LHHdftWyLJE0QIAIsI+UbXu67dZMjmgDGCGl1H+vpF4NSDckSIkk7Vd+sxEhBQMRU8j/12UIRhzSaUdQ+rQU5kGeFxm+hb1oh6pWWmv3uvmReDl0UnvtapVaIzo1jZbf/pD6ElLqSX+rUmOQNpJFa/r+sa4e/pBlAABoAAAAA3CUgShLdGIxsY7AUABPRrgCABdDuQ5GC7DqPQCgbbJUAoRSUj+NIEig0YfyWUho1VBBBA//uQZB4ABZx5zfMakeAAAAmwAAAAF5F3P0w9GtAAACfAAAAAwLhMDmAYWMgVEG1U0FIGCBgXBXAtfMH10000EEEEEECUBYln03TTTdNBDZopopYvrTTdNa325mImNg3TTPV9q3pmY0xoO6bv3r00y+IDGid/9aaaZTGMuj9mpu9Mpio1dXrr5HERTZSmqU36A3CumzN/9Robv/Xx4v9ijkSRSNLQhAWumap82WRSBUqXStV/YcS+XVLnSS+WLDroqArFkMEsAS+eWmrUzrO0oEmE40RlMZ5+ODIkAyKAGUwZ3mVKmcamcJnMW26MRPgUw6j+LkhyHGVGYjSUUKNpuJUQoOIAyDvEyG8S5yfK6dhZc0Tx1KI/gviKL6qvvFs1+bWtaz58uUNnryq6kt5RzOCkPWlVqVX2a/EEBUdU1KrXLf40GoiiFXK///qpoiDXrOgqDR38JB0bw7SoL+ZB9o1RCkQjQ2CBYZKd/+VJxZRRZlqSkKiws0WFxUyCwsKiMy7hUVFhIaCrNQsKkTIsLivwKKigsj8XYlwt/WKi2N4d//uQRCSAAjURNIHpMZBGYiaQPSYyAAABLAAAAAAAACWAAAAApUF/Mg+0aohSIRobBAsMlO//Kk4soosy1JSFRYWaLC4qZBYWFRGZdwqKiwkNBVmoWFSJkWFxX4FFRQWR+LsS4W/rFRb/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////VEFHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAU291bmRib3kuZGUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMjAwNGh0dHA6Ly93d3cuc291bmRib3kuZGUAAAAAAAAAACU=\");\nsnd.play();\n}\n"
+      "var cards=-1;\n"
+      "function checkCards() {\n"
+        "var xhttp = new XMLHttpRequest();\n"
+        "xhttp.onreadystatechange = function() {\n"
+          "if (this.readyState == 4) {\n"
+            "try {\n"
+              "if(this.status == 200) {\n"
+                "if (this.responseText.indexOf(\"Log file not found\") > -1) {\n"
+                  "cards = 0;\n"
+                "}\n"
+                "else {\n"
+                  "var result = JSON.parse(this.responseText);\n"
+                  "if(cards != result[\"CaptureCount\"]) {\n"
+                    "if(cards != -1) {\n"
+                      "beep();\n"
+                      "var p = document.createElement(\"p\");\n"
+                      "p.innerHTML = JSON.stringify(result[\"Captures\"][result[\"CaptureCount\"] - 1]);\n"
+                      "document.getElementById(\"cards\").append(p);\n"
+                    "}\n"
+                    "cards = result[\"CaptureCount\"];\n"
+                  "}\n"
+                "}\n"
+              "}\n"
+            "} catch {}\n"
+            "window.setTimeout(checkCards, 500);\n"
+          "}\n"
+        "}\n"
+        "xhttp.open(\"GET\", \"/api/viewlog?logfile=log.txt\", true);\n"
+        "xhttp.send();\n"
+      "}\n"
+      "checkCards();\n"
+      "</script>\n</body>\n</html>\n"));
+  });
+
   server.on("/format", [](){
-    server.send(200, "text/html", F("<html><body><a href=\"/\"><- BACK TO INDEX</a><br><br>This will reformat the SPIFFS File System.<br><br>Are you sure?<br><br><a href=\"/format/yes\">YES</a> - <a href=\"/\">NO</a></body></html>"));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.warning-section{background:#f8d7da;border-left:4px solid #dc3545;padding:20px;margin:20px 0;border-radius:4px;color:#721c24}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><div class=\"warning-section\"><p><strong>Format File System</strong></p><p>This will reformat the SPIFFS File System.</p><p><strong>Are you sure?</strong></p></div><a href=\"/format/yes\" class=\"btn btn-danger\">YES</a><a href=\"/\" class=\"btn btn-secondary\">NO</a></div></body></html>"));
   });
 
   server.on("/logs", ListLogs);
@@ -1148,7 +1201,7 @@ void setup() {
   server.on("/reboot", [](){
     if(!server.authenticate(update_username, update_password))
     return server.requestAuthentication();
-    server.send(200, "text/html", F("<a href=\"/\"><- BACK TO INDEX</a><br><br>Rebooting Device..."));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d1ecf1;border-left:4px solid #17a2b8;padding:20px;margin:20px 0;border-radius:4px;color:#0c5460}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><div class=\"info-section\"><p><strong>Rebooting Device...</strong></p></div></div></body></html>"));
     delay(50);
     ESP.restart();
   });
@@ -1156,7 +1209,7 @@ void setup() {
   server.on("/format/yes", [](){
     if(!server.authenticate(update_username, update_password))
       return server.requestAuthentication();
-    server.send(200, "text/html", F("<a href=\"/\"><- BACK TO INDEX</a><br><br>Formatting file system: This may take up to 90 seconds"));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d1ecf1;border-left:4px solid #17a2b8;padding:20px;margin:20px 0;border-radius:4px;color:#0c5460}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><div class=\"info-section\"><p><strong>Formatting file system</strong></p><p>This may take up to 90 seconds</p></div></div></body></html>"));
     delay(50);
 //    Serial.print("Formatting file system...");
     SPIFFS.format();
@@ -1265,29 +1318,39 @@ void setup() {
     }
     
     server.send(200, "text/html", String()+F(
-      "<a href=\"/\"><- BACK TO INDEX</a><br><br>")
+      "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:900px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}h1{color:#2c3e50;margin-bottom:25px;font-size:28px;font-weight:600}h2{color:#34495e;margin:25px 0 15px;font-size:20px;font-weight:500;padding-bottom:10px;border-bottom:2px solid #e9ecef}.form-group{margin:25px 0}.form-group label{display:block;margin-bottom:8px;font-weight:500;color:#495057;font-size:15px}.form-group small{display:block;color:#6c757d;font-size:13px;margin-top:5px;margin-bottom:10px}input[type=\"text\"],input[type=\"password\"],input[type=\"number\"],select{width:100%;max-width:600px;padding:10px 12px;border:1px solid #ced4da;border-radius:6px;font-size:15px;font-family:inherit;transition:border-color 0.3s,box-shadow 0.3s}input[type=\"text\"]:focus,input[type=\"password\"]:focus,input[type=\"number\"]:focus,select:focus{outline:none;border-color:#007bff;box-shadow:0 0 0 3px rgba(0,123,255,0.1)}input[type=\"submit\"]{background:#28a745;color:#fff;padding:12px 30px;border:none;border-radius:6px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.3s;font-family:inherit;margin-top:10px}input[type=\"submit\"]:hover{background:#218838;transform:translateY(-1px);box-shadow:0 4px 8px rgba(40,167,69,0.3)}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}.result-section{background:#f8f9fa;border-left:4px solid #007bff;padding:15px;margin:20px 0;border-radius:4px;white-space:pre-wrap;font-family:monospace;font-size:14px}hr{margin:30px 0;border:none;border-top:1px solid #e9ecef}</style></head><body><div class=\"container\"><h1>Data Conversion Tools</h1><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a>")
       +dataCONVERSION+
       F(
       "<hr>"
+      "<h2>Convert ABA Binary Data to ASCII</h2>"
       "<FORM action=\"/data-convert\" id=\"aba2ascii\" method=\"post\">"
-      "<b>Convert ABA Binary Data to ASCII:</b><br>"
-      "<INPUT form=\"aba2ascii\" type=\"text\" name=\"abaHTML\" value=\"\" pattern=\"[0-1]{1,}\" required title=\"Only 0's & 1's allowed, must not be empty\" minlength=\"1\" size=\"52\"><br>"
-      "<INPUT form=\"aba2ascii\" type=\"submit\" value=\"Convert\"><br>"
+      "<div class=\"form-group\">"
+      "<label>Binary Data</label>"
+      "<INPUT form=\"aba2ascii\" type=\"text\" name=\"abaHTML\" value=\"\" pattern=\"[0-1]{1,}\" required title=\"Only 0's & 1's allowed, must not be empty\" minlength=\"1\">"
+      "</div>"
+      "<INPUT form=\"aba2ascii\" type=\"submit\" value=\"Convert\">"
       "</FORM>"
-      "<br>"
+      "<hr>"
+      "<h2>Convert Binary Data to Hexadecimal</h2>"
       "<FORM action=\"/data-convert\" id=\"bin2hex\" method=\"post\">"
-      "<b>Convert Binary Data to Hexadecimal:</b><br>"
-      "<small>For use with card cloning, typically includes both the preamble and card data(binary before and after the space in log).</small><br>"
-      "<INPUT form=\"bin2hex\" type=\"text\" name=\"bin2hexHTML\" value=\"\" pattern=\"[0-1]{1,}\" required title=\"Only 0's & 1's allowed, no spaces allowed, must not be empty\" minlength=\"1\" size=\"52\"><br>"
-      "<INPUT form=\"bin2hex\" type=\"submit\" value=\"Convert\"><br>"
+      "<div class=\"form-group\">"
+      "<label>Binary Data</label>"
+      "<small>For use with card cloning, typically includes both the preamble and card data (binary before and after the space in log).</small>"
+      "<INPUT form=\"bin2hex\" type=\"text\" name=\"bin2hexHTML\" value=\"\" pattern=\"[0-1]{1,}\" required title=\"Only 0's & 1's allowed, no spaces allowed, must not be empty\" minlength=\"1\">"
+      "</div>"
+      "<INPUT form=\"bin2hex\" type=\"submit\" value=\"Convert\">"
       "</FORM>"
-      "<br>"
+      "<hr>"
+      "<h2>Convert Hexadecimal Data to Binary</h2>"
       "<FORM action=\"/data-convert\" id=\"hex2bin\" method=\"post\">"
-      "<b>Convert Hexadecimal Data to Binary:</b><br>"
-      "<small>In some situations you may want to add a leading zero to pad the output to come up with the correct number of bits.</small><br>"
-      "<INPUT form=\"hex2bin\" type=\"text\" name=\"hex2binHTML\" value=\"\" pattern=\"[0-9a-fA-F]{1,}\" required title=\"Only characters 0-9 A-F a-f allowed, no spaces allowed, must not be empty\" minlength=\"1\" size=\"52\"><br>"
-      "<INPUT form=\"hex2bin\" type=\"submit\" value=\"Convert\"><br>"
+      "<div class=\"form-group\">"
+      "<label>Hexadecimal Data</label>"
+      "<small>In some situations you may want to add a leading zero to pad the output to come up with the correct number of bits.</small>"
+      "<INPUT form=\"hex2bin\" type=\"text\" name=\"hex2binHTML\" value=\"\" pattern=\"[0-9a-fA-F]{1,}\" required title=\"Only characters 0-9 A-F a-f allowed, no spaces allowed, must not be empty\" minlength=\"1\">"
+      "</div>"
+      "<INPUT form=\"hex2bin\" type=\"submit\" value=\"Convert\">"
       "</FORM>"
+      "</div></body></html>"
       )
     );
       
@@ -1297,12 +1360,12 @@ void setup() {
   #include "api_server.h"
 
   server.on("/stoptx", [](){
-    server.send(200, "text/html", F("<html><body>This will kill any ongoing transmissions.<br><br>Are you sure?<br><br><a href=\"/stoptx/yes\">YES</a> - <a href=\"/\">NO</a></body></html>"));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.warning-section{background:#f8d7da;border-left:4px solid #dc3545;padding:20px;margin:20px 0;border-radius:4px;color:#721c24}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><div class=\"warning-section\"><p><strong>Stop Transmission</strong></p><p>This will kill any ongoing transmissions.</p><p><strong>Are you sure?</strong></p></div><a href=\"/stoptx/yes\" class=\"btn btn-danger\">YES</a><a href=\"/\" class=\"btn btn-secondary\">NO</a></div></body></html>"));
   });
 
   server.on("/stoptx/yes", [](){
     TXstatus=0;
-    server.send(200, "text/html", F("<a href=\"/\"><- BACK TO INDEX</a><br><br><a href=\"/experimental\"><- BACK TO EXPERIMENTAL TX MODE</a><br><br>All transmissions have been stopped."));
+    server.send(200, "text/html", F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d4edda;border-left:4px solid #28a745;padding:20px;margin:20px 0;border-radius:4px;color:#155724}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/experimental\" class=\"btn btn-primary\">BACK TO EXPERIMENTAL TX MODE</a><div class=\"info-section\"><p><strong>All transmissions have been stopped.</strong></p></div></div></body></html>"));
   });
 
   server.on("/experimental", [](){
@@ -1354,7 +1417,7 @@ void setup() {
       }
 
       if (server.hasArg("bruteSTART")) {
-        server.send(200, "text/html", String()+"<a href=\"/\"><- BACK TO INDEX</a><br><br><a href=\"/experimental\"><- BACK TO EXPERIMENTAL TX MODE</a><br><br>Brute forcing "+pinBITS+"bit Wiegand Format PIN from "+(server.arg("bruteSTART"))+" to "+(server.arg("bruteEND"))+" with a "+pinHTMLDELAY+"ms delay between \"keypresses\"<br>This may take a while, your device will be busy until the sequence has been completely transmitted!<br>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.<br>You can view if the brute force attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"<br><br><a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>");
+        server.send(200, "text/html", String()+F("<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:800px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d1ecf1;border-left:4px solid #17a2b8;padding:20px;margin:20px 0;border-radius:4px;color:#0c5460}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/experimental\" class=\"btn btn-primary\">BACK TO EXPERIMENTAL TX MODE</a><div class=\"info-section\"><p><strong>Brute forcing ")+pinBITS+F("bit Wiegand Format PIN</strong></p><p>From ")+(server.arg("bruteSTART"))+F(" to ")+(server.arg("bruteEND"))+F(" with a ")+pinHTMLDELAY+F("ms delay between keypresses</p><p>This may take a while, your device will be busy until the sequence has been completely transmitted!</p><p>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.</p><p>You can view if the brute force attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"</p></div><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a></div></body></html>"));
         delay(50);
       }
 
@@ -1623,26 +1686,14 @@ void setup() {
       dos=0;
       if ((server.arg("fuzzTimes"))=="dos") {
         dos=1;
-        server.send(200, "text/html", String()+
-        "<a href=\"/\"><- BACK TO INDEX</a><br><br>"
-        "<a href=\"/experimental\"><- BACK TO EXPERIMENTAL TX MODE</a><br><br>"
-        "Denial of Service mode active.<br>Transmitting D0 and D1 bits simultaneously until stopped."
-        "<br>This may take a while, your device will be busy until the sequence has been completely transmitted!"
-        "<br>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.<br>"
-        "You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"<br><br>"
-        "<a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>");
+        server.send(200, "text/html", String()+F(
+        "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:800px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.warning-section{background:#fff3cd;border-left:4px solid #ffc107;padding:20px;margin:20px 0;border-radius:4px;color:#856404}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/experimental\" class=\"btn btn-primary\">BACK TO EXPERIMENTAL TX MODE</a><div class=\"warning-section\"><p><strong>Denial of Service mode active.</strong></p><p>Transmitting D0 and D1 bits simultaneously until stopped.</p><p>This may take a while, your device will be busy until the sequence has been completely transmitted!</p><p>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.</p><p>You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"</p></div><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a></div></body></html>"));
         delay(50);
       }
       else {
         fuzzTimes=server.arg("fuzzTimes").toInt();
-        server.send(200, "text/html", String()+
-        "<a href=\"/\"><- BACK TO INDEX</a><br><br>"
-        "<a href=\"/experimental\"><- BACK TO EXPERIMENTAL TX MODE</a><br><br>"
-        "Transmitting D0 and D1 bits simultaneously "+fuzzTimes+" times."
-        "<br>This may take a while, your device will be busy until the sequence has been completely transmitted!"
-        "<br>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.<br>"
-        "You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"<br><br>"
-        "<a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>");
+        server.send(200, "text/html", String()+F(
+        "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:800px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d1ecf1;border-left:4px solid #17a2b8;padding:20px;margin:20px 0;border-radius:4px;color:#0c5460}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/experimental\" class=\"btn btn-primary\">BACK TO EXPERIMENTAL TX MODE</a><div class=\"info-section\"><p><strong>Transmitting D0 and D1 bits simultaneously ")+fuzzTimes+F(" times.</strong></p><p>This may take a while, your device will be busy until the sequence has been completely transmitted!</p><p>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.</p><p>You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"</p></div><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a></div></body></html>"));
         delay(50);
       }
       
@@ -1682,26 +1733,14 @@ void setup() {
       dos=0;
       if ((server.arg("fuzzTimes"))=="dos") {
         dos=1;
-        server.send(200, "text/html", String()+
-        "<a href=\"/\"><- BACK TO INDEX</a><br><br>"
-        "<a href=\"/experimental\"><- BACK TO EXPERIMENTAL TX MODE</a><br><br>"
-        "Denial of Service mode active.<br>Transmitting bits alternating between D0 and D1 until stopped."
-        "<br>This may take a while, your device will be busy until the sequence has been completely transmitted!"
-        "<br>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.<br>"
-        "You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"<br><br>"
-        "<a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>");
+        server.send(200, "text/html", String()+F(
+        "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:800px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.warning-section{background:#fff3cd;border-left:4px solid #ffc107;padding:20px;margin:20px 0;border-radius:4px;color:#856404}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/experimental\" class=\"btn btn-primary\">BACK TO EXPERIMENTAL TX MODE</a><div class=\"warning-section\"><p><strong>Denial of Service mode active.</strong></p><p>Transmitting bits alternating between D0 and D1 until stopped.</p><p>This may take a while, your device will be busy until the sequence has been completely transmitted!</p><p>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.</p><p>You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"</p></div><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a></div></body></html>"));
         delay(50);
       }
       else {
         fuzzTimes=server.arg("fuzzTimes").toInt();
-        server.send(200, "text/html", String()+
-        "<a href=\"/\"><- BACK TO INDEX</a><br><br>"
-        "<a href=\"/experimental\"><- BACK TO EXPERIMENTAL TX MODE</a><br><br>"
-        "Transmitting "+fuzzTimes+" bits alternating between D0 and D1."
-        "<br>This may take a while, your device will be busy until the sequence has been completely transmitted!"
-        "<br>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.<br>"
-        "You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"<br><br>"
-        "<a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>");
+        server.send(200, "text/html", String()+F(
+        "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:800px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}.info-section{background:#d1ecf1;border-left:4px solid #17a2b8;padding:20px;margin:20px 0;border-radius:4px;color:#0c5460}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}</style></head><body><div class=\"container\"><a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a><br><br><a href=\"/experimental\" class=\"btn btn-primary\">BACK TO EXPERIMENTAL TX MODE</a><div class=\"info-section\"><p><strong>Transmitting ")+fuzzTimes+F(" bits alternating between D0 and D1.</strong></p><p>This may take a while, your device will be busy until the sequence has been completely transmitted!</p><p>Please \"STOP CURRENT TRANSMISSION\" before attempting to use your device or simply wait for the transmission to finish.</p><p>You can view if the fuzzing attempt has completed by returning to the Experimental TX page and checking the status located under \"Transmit Status\"</p></div><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a></div></body></html>"));
         delay(50);
       }
       
@@ -1739,8 +1778,6 @@ void setup() {
       wg.clear();
       TXstatus=0;
       dos=0;
-
-      //experimentalStatus=String()+"Transmitting alternating bits: "+binALT;
       binALT="";
     }
 
@@ -1771,19 +1808,19 @@ void setup() {
       
       if (pinHTML!="") {
         String currentPIN=pinHTML;
-        activeTX="Brute forcing PIN: "+currentPIN+"<br><a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>";
+        activeTX="Brute forcing PIN: "+currentPIN+"<br><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a>";
         currentPIN="";
       }
       else if (dos==1) {
-        activeTX="Denial of Service mode active...<br><a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>";
+        activeTX="Denial of Service mode active...<br><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a>";
       }
       else {
-        activeTX="Transmitting...<br><a href=\"/stoptx\"><button>STOP CURRENT TRANSMISSION</button></a>";
+        activeTX="Transmitting...<br><a href=\"/stoptx\" class=\"btn btn-danger\">STOP CURRENT TRANSMISSION</a>";
       }
       
     }
     else {
-      activeTX="INACTIVE<br><button>NOTHING TO STOP</button>";
+      activeTX="INACTIVE<br><span class=\"btn btn-secondary\" style=\"cursor:default\">NOTHING TO STOP</span>";
     }
 
     server.send(200, "text/html", 
@@ -1792,100 +1829,143 @@ void setup() {
       "<!DOCTYPE HTML>"
       "<html>"
       "<head>"
+      "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
       "<title>Experimental TX Mode</title>"
+      "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;color:#333;line-height:1.6;padding:20px}.container{max-width:900px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:30px;margin-bottom:20px}h1{color:#2c3e50;margin-bottom:25px;font-size:28px;font-weight:600}h2{color:#34495e;margin:25px 0 15px;font-size:20px;font-weight:500;padding-bottom:10px;border-bottom:2px solid #e9ecef}.form-group{margin:20px 0}.form-group label{display:block;margin-bottom:8px;font-weight:500;color:#495057;font-size:15px}.form-group small{display:block;color:#6c757d;font-size:13px;margin-top:5px;margin-bottom:10px}input[type=\"text\"],input[type=\"password\"],input[type=\"number\"],select{width:100%;max-width:600px;padding:10px 12px;border:1px solid #ced4da;border-radius:6px;font-size:15px;font-family:inherit;transition:border-color 0.3s,box-shadow 0.3s}input[type=\"text\"]:focus,input[type=\"password\"]:focus,input[type=\"number\"]:focus,select:focus{outline:none;border-color:#007bff;box-shadow:0 0 0 3px rgba(0,123,255,0.1)}input[type=\"radio\"]{margin-right:8px;margin-left:0;width:18px;height:18px;cursor:pointer}.radio-group{margin:10px 0}.radio-group label{display:inline;font-weight:400;margin-left:5px;cursor:pointer}input[type=\"submit\"]{background:#28a745;color:#fff;padding:12px 30px;border:none;border-radius:6px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.3s;font-family:inherit;margin-top:10px}input[type=\"submit\"]:hover{background:#218838;transform:translateY(-1px);box-shadow:0 4px 8px rgba(40,167,69,0.3)}.btn{display:inline-block;padding:12px 24px;margin:8px 8px 8px 0;text-decoration:none;border-radius:6px;font-size:15px;font-weight:500;transition:all 0.3s;border:none;cursor:pointer;font-family:inherit}.btn-primary{background:#007bff;color:#fff}.btn-primary:hover{background:#0056b3;transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,123,255,0.3)}.btn-danger{background:#dc3545;color:#fff}.btn-danger:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 4px 8px rgba(220,53,69,0.3)}.btn-secondary{background:#6c757d;color:#fff}.btn-secondary:hover{background:#5a6268;transform:translateY(-1px);box-shadow:0 4px 8px rgba(108,117,125,0.3)}.warning-section{background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin:20px 0;border-radius:4px;color:#856404}.status-section{background:#d1ecf1;border-left:4px solid #17a2b8;padding:15px;margin:20px 0;border-radius:4px;color:#0c5460}hr{margin:30px 0;border:none;border-top:1px solid #e9ecef}</style>"
       "</head>"
       "<body>"
-      )+experimentalStatus+"<br><br>"
-      +F(
-      "<b>Transmit Status:</b> ")+activeTX+F("<br><br>"
-      "<a href=\"/\"><- BACK TO INDEX</a><br>"
-      "<P>"
+      "<div class=\"container\">"
       "<h1>Experimental TX Mode</h1>"
+      "<a href=\"/\" class=\"btn btn-secondary\">BACK TO INDEX</a>"
+      )+experimentalStatus+F("<div class=\"status-section\"><p><strong>Transmit Status:</strong></p>")+activeTX+F("</div>"
+      "<div class=\"warning-section\">"
+      "<p><strong>Warning:</strong> This mode is highly experimental, use at your own risk!</p>"
+      "<p>Note: Timings for the Wiegand Data Pulse Width and Wiegand Data Interval may be changed on the settings page.</p>"
+      "</div>"
       "<hr>"
-      "<small>"
-      "<b>Warning:</b> This mode is highly experimental, use at your own risk!<br>"
-      "Note: Timings for the Wiegand Data Pulse Width and Wiegand Data Interval may be changed on the settings page."
-      "</small>"
-      "<br>"
-      "<hr>"
-      "<br>"
+      "<h2>Transmit Binary Data</h2>"
       "<FORM action=\"/experimental\" id=\"transmitbinary\" method=\"post\">"
-      "<b>Binary Data:</b><br>"
-      "<small>Typically no need to include preamble</small><br>"
-      "<INPUT form=\"transmitbinary\" type=\"text\" name=\"binHTML\" value=\"\" pattern=\"[0-1]{1,}\" required title=\"Only 0's & 1's allowed, must not be empty\" minlength=\"1\" size=\"52\"><br>"
-      "<INPUT form=\"transmitbinary\" type=\"submit\" value=\"Transmit\"><br>"
+      "<div class=\"form-group\">"
+      "<label>Binary Data</label>"
+      "<small>Typically no need to include preamble</small>"
+      "<INPUT form=\"transmitbinary\" type=\"text\" name=\"binHTML\" value=\"\" pattern=\"[0-1]{1,}\" required title=\"Only 0's & 1's allowed, must not be empty\" minlength=\"1\">"
+      "</div>"
+      "<INPUT form=\"transmitbinary\" type=\"submit\" value=\"Transmit\">"
       "</FORM>"
-      "<br>"
       "<hr>"
-      "<br>"
+      "<h2>Transmit PIN</h2>"
       "<FORM action=\"/experimental\" id=\"transmitpin\" method=\"post\">"
-      "<b>Transmit PIN:</b><br>"
-      "<small>Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F</small><br>"
-      "<small>PIN: </small><INPUT form=\"transmitpin\" type=\"text\" name=\"pinHTML\" value=\"\" pattern=\"[0-9*#A-F]{1,}\" required title=\"Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F, must not be empty\" minlength=\"1\" size=\"52\"><br>"
-      "<small>Delay between \"keypresses\": </small><INPUT form=\"transmitpin\" type=\"number\" name=\"pinHTMLDELAY\" value=\"100\" minlength=\"1\" min=\"0\" size=\"8\"><small>ms</small><br>"
-      "<INPUT form=\"transmitpin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"4\" checked required> <small>4bit Wiegand PIN Format</small>   "
-      "<INPUT form=\"transmitpin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"8\" required> <small>8bit Wiegand PIN Format</small><br>"
-      "<INPUT form=\"transmitpin\" type=\"submit\" value=\"Transmit\"><br>"
+      "<div class=\"form-group\">"
+      "<label>PIN</label>"
+      "<small>Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F</small>"
+      "<INPUT form=\"transmitpin\" type=\"text\" name=\"pinHTML\" value=\"\" pattern=\"[0-9*#A-F]{1,}\" required title=\"Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F, must not be empty\" minlength=\"1\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Delay between keypresses</label>"
+      "<INPUT form=\"transmitpin\" type=\"number\" name=\"pinHTMLDELAY\" value=\"100\" min=\"0\" style=\"max-width:200px\"> <small>ms</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<div class=\"radio-group\">"
+      "<label><INPUT form=\"transmitpin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"4\" checked required> 4bit Wiegand PIN Format</label><br>"
+      "<label><INPUT form=\"transmitpin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"8\" required> 8bit Wiegand PIN Format</label>"
+      "</div></div>"
+      "<INPUT form=\"transmitpin\" type=\"submit\" value=\"Transmit\">"
       "</FORM>"
-      "<br>"
       "<hr>"
-      "<br>"
+      "<h2>Bruteforce PIN</h2>"
       "<FORM action=\"/experimental\" id=\"brutepin\" method=\"post\">"
-      "<b>Bruteforce PIN:</b><br>"
-      "<small>Delay between \"keypresses\": </small><INPUT form=\"brutepin\" type=\"number\" name=\"pinHTMLDELAY\" value=\"3\" minlength=\"1\" min=\"0\" size=\"8\"><small>ms</small><br>"
-      "<small>Delay between entering complete PINs: </small><INPUT form=\"brutepin\" type=\"number\" name=\"delayAFTERpin\" value=\"0\" minlength=\"1\" min=\"0\" size=\"8\"><small>ms</small><br>"
-      "<small>PIN begins with character(s): </small><INPUT form=\"brutepin\" type=\"text\" name=\"bruteSTARTchar\" value=\"\" pattern=\"[0-9*#A-F]{0,}\" title=\"Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F, must not be empty\" size=\"8\"><br>"
-      "<small>PIN start position: </small><INPUT form=\"brutepin\" type=\"number\" name=\"bruteSTART\" value=\"0000\" minlength=\"1\" min=\"0\" size=\"8\"><br>"
-      "<small>PIN end position: </small><INPUT form=\"brutepin\" type=\"number\" name=\"bruteEND\" value=\"9999\" minlength=\"1\" min=\"0\" size=\"8\"><br>"
-      "<small>PIN ends with character(s): </small><INPUT form=\"brutepin\" type=\"text\" name=\"bruteENDchar\" value=\"#\" pattern=\"[0-9*#A-F]{0,}\" title=\"Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F, must not be empty\" size=\"8\"><br>"
-      "<small>NOTE: The advanced timing settings listed below override the \"Delay between entering complete PINs\" setting(listed above) when the conditions listed below are met.</small><br>"
-      "<small>Number of failed PIN attempts(X) before a delay: </small><INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILSmax\" value=\"0\" minlength=\"1\" min=\"0\" size=\"8\"><br>"
-      "<small>Delay in seconds(Y) after [X] failed PINs: </small><INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILdelay\" value=\"0\" minlength=\"1\" min=\"0\" size=\"8\"><small>s</small><br>"
-      "<small>Multiply delay [Y] by <INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILmultiplier\" value=\"0\" minlength=\"1\" min=\"0\" size=\"4\"> after every <INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILmultiplierAFTER\" value=\"0\" minlength=\"1\" min=\"0\" size=\"4\"> failed pin attempts</small><br>"
-      "<INPUT form=\"brutepin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"4\" checked required> <small>4bit Wiegand PIN Format</small>   "
-      "<INPUT form=\"brutepin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"8\" required> <small>8bit Wiegand PIN Format</small><br>"
-      "<INPUT form=\"brutepin\" type=\"submit\" value=\"Transmit\"></FORM><br>"
-      "<br>"
+      "<div class=\"form-group\">"
+      "<label>Delay between keypresses</label>"
+      "<INPUT form=\"brutepin\" type=\"number\" name=\"pinHTMLDELAY\" value=\"3\" min=\"0\" style=\"max-width:200px\"> <small>ms</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Delay between entering complete PINs</label>"
+      "<INPUT form=\"brutepin\" type=\"number\" name=\"delayAFTERpin\" value=\"0\" min=\"0\" style=\"max-width:200px\"> <small>ms</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>PIN begins with character(s)</label>"
+      "<INPUT form=\"brutepin\" type=\"text\" name=\"bruteSTARTchar\" value=\"\" pattern=\"[0-9*#A-F]{0,}\" title=\"Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F\" style=\"max-width:200px\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>PIN start position</label>"
+      "<INPUT form=\"brutepin\" type=\"number\" name=\"bruteSTART\" value=\"0000\" min=\"0\" style=\"max-width:200px\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>PIN end position</label>"
+      "<INPUT form=\"brutepin\" type=\"number\" name=\"bruteEND\" value=\"9999\" min=\"0\" style=\"max-width:200px\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>PIN ends with character(s)</label>"
+      "<INPUT form=\"brutepin\" type=\"text\" name=\"bruteENDchar\" value=\"#\" pattern=\"[0-9*#A-F]{0,}\" title=\"Available keys 0-9, * or A, # or B, F1 or C, F2 or D, F3 or E, F4 or F\" style=\"max-width:200px\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<small>NOTE: The advanced timing settings listed below override the \"Delay between entering complete PINs\" setting (listed above) when the conditions listed below are met.</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Number of failed PIN attempts (X) before a delay</label>"
+      "<INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILSmax\" value=\"0\" min=\"0\" style=\"max-width:200px\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Delay in seconds (Y) after [X] failed PINs</label>"
+      "<INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILdelay\" value=\"0\" min=\"0\" style=\"max-width:200px\"> <small>s</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Advanced Timing Multiplier</label>"
+      "<small>Multiply delay [Y] by <INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILmultiplier\" value=\"0\" min=\"0\" style=\"max-width:100px\"> after every <INPUT form=\"brutepin\" type=\"number\" name=\"bruteFAILmultiplierAFTER\" value=\"0\" min=\"0\" style=\"max-width:100px\"> failed pin attempts</small>"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<div class=\"radio-group\">"
+      "<label><INPUT form=\"brutepin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"4\" checked required> 4bit Wiegand PIN Format</label><br>"
+      "<label><INPUT form=\"brutepin\" type=\"radio\" name=\"pinBITS\" id=\"pinBITS\" value=\"8\" required> 8bit Wiegand PIN Format</label>"
+      "</div></div>"
+      "<INPUT form=\"brutepin\" type=\"submit\" value=\"Transmit\">"
+      "</FORM>"
       "<hr>"
-      "<br>"
-      "<b>Fuzzing:</b><br><br>"
+      "<h2>Fuzzing</h2>"
       "<FORM action=\"/experimental\" id=\"fuzz\" method=\"post\">"
-      "<b>Number of bits:</b>"
-      "<INPUT form=\"fuzz\" type=\"number\" name=\"fuzzTimes\" value=\"100\" minlength=\"1\" min=\"1\" max=\"2147483647\" size=\"32\"><br>"
-      //"<INPUT form=\"fuzz\" type=\"text\" name=\"fuzzTimes\" value=\"\" pattern=\"^[1-9]+[0-9]*$\" required title=\"Must be a number > 0, must not be empty \" minlength=\"1\" size=\"32\"><br>"
-      "<INPUT form=\"fuzz\" type=\"radio\" name=\"fuzzType\" id=\"simultaneous\" value=\"simultaneous\" required> <small>Transmit a bit simultaneously on D0 and D1 (X bits per each line)</small><br>"
-      "<INPUT form=\"fuzz\" type=\"radio\" name=\"fuzzType\" id=\"alternating\" value=\"alternating\"> <small>Transmit X bits alternating between D0 and D1 each bit (01010101,etc)</small><br>"
-      "<INPUT form=\"fuzz\" type=\"submit\" value=\"Fuzz\"><br>"
+      "<div class=\"form-group\">"
+      "<label>Number of bits</label>"
+      "<INPUT form=\"fuzz\" type=\"number\" name=\"fuzzTimes\" value=\"100\" min=\"1\" max=\"2147483647\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<div class=\"radio-group\">"
+      "<label><INPUT form=\"fuzz\" type=\"radio\" name=\"fuzzType\" id=\"simultaneous\" value=\"simultaneous\" required> Transmit a bit simultaneously on D0 and D1 (X bits per each line)</label><br>"
+      "<label><INPUT form=\"fuzz\" type=\"radio\" name=\"fuzzType\" id=\"alternating\" value=\"alternating\"> Transmit X bits alternating between D0 and D1 each bit (01010101, etc)</label>"
+      "</div></div>"
+      "<INPUT form=\"fuzz\" type=\"submit\" value=\"Fuzz\">"
       "</FORM>"
-      "<br>"
       "<hr>"
-      "<br>"
-      "<b>Denial Of Service Mode:</b><br><br>"
+      "<h2>Denial Of Service Mode</h2>"
       "<FORM action=\"/experimental\" id=\"dos\" method=\"post\">"
-      "<b>Type of Attack:</b>"
-      "<INPUT hidden=\"1\" form=\"dos\" type=\"text\" name=\"fuzzTimes\" value=\"dos\"><br>"
-      "<INPUT form=\"dos\" type=\"radio\" name=\"fuzzType\" id=\"simultaneous\" value=\"simultaneous\" required> <small>Transmit a bit simultaneously on D0 and D1 until stopped</small><br>"
-      "<INPUT form=\"dos\" type=\"radio\" name=\"fuzzType\" id=\"alternating\" value=\"alternating\"> <small>Transmit bits alternating between D0 and D1 each bit (01010101,etc) until stopped</small><br>"
-      "<INPUT form=\"dos\" type=\"submit\" value=\"Start DoS\"><br>"
+      "<INPUT hidden=\"1\" form=\"dos\" type=\"text\" name=\"fuzzTimes\" value=\"dos\">"
+      "<div class=\"form-group\">"
+      "<label>Type of Attack</label>"
+      "<div class=\"radio-group\">"
+      "<label><INPUT form=\"dos\" type=\"radio\" name=\"fuzzType\" id=\"simultaneous\" value=\"simultaneous\" required> Transmit a bit simultaneously on D0 and D1 until stopped</label><br>"
+      "<label><INPUT form=\"dos\" type=\"radio\" name=\"fuzzType\" id=\"alternating\" value=\"alternating\"> Transmit bits alternating between D0 and D1 each bit (01010101, etc) until stopped</label>"
+      "</div></div>"
+      "<INPUT form=\"dos\" type=\"submit\" value=\"Start DoS\">"
       "</FORM>"
-      "<br>"
       "<hr>"
-      "<br>"
-      "<b>Push Button for Door Open:</b><br>"
-      "<small>Connect \"Push to Open\" wire from the reader to the RX pin(GPIO3) on the programming header on ESP-RFID-Tool.</small><br>"
-      "<small>Warning! Selecting the wrong trigger signal type may cause damage to the connected hardware.</small><br><br>"
+      "<h2>Push Button for Door Open</h2>"
+      "<div class=\"warning-section\">"
+      "<p>Connect \"Push to Open\" wire from the reader to the RX pin (GPIO3) on the programming header on ESP-RFID-Tool.</p>"
+      "<p><strong>Warning!</strong> Selecting the wrong trigger signal type may cause damage to the connected hardware.</p>"
+      "</div>"
       "<FORM action=\"/experimental\" id=\"push\" method=\"post\">"
-      "<b>Time in ms to push the door open button:</b>"
-      "<INPUT form=\"push\" type=\"text\" name=\"pushTime\" value=\"50\" pattern=\"^[1-9]+[0-9]*$\" required title=\"Must be a number > 0, must not be empty\" minlength=\"1\" size=\"32\"><br>"
-      "<b>Does the wire expect a High or Low signal to open the door:</b>"
-      "<INPUT form=\"push\" type=\"radio\" name=\"pushType\" id=\"Ground\" value=\"Ground\" checked required> <small>Low Signal[Ground]</small>   "
-      "<INPUT form=\"push\" type=\"radio\" name=\"pushType\" id=\"Ground\" value=\"High\" required> <small>High Signal[3.3V]</small><br>"
-      "<INPUT form=\"push\" type=\"submit\" value=\"Push\"><br>"
+      "<div class=\"form-group\">"
+      "<label>Time in ms to push the door open button</label>"
+      "<INPUT form=\"push\" type=\"text\" name=\"pushTime\" value=\"50\" pattern=\"^[1-9]+[0-9]*$\" required title=\"Must be a number > 0, must not be empty\" minlength=\"1\" style=\"max-width:200px\">"
+      "</div>"
+      "<div class=\"form-group\">"
+      "<label>Does the wire expect a High or Low signal to open the door</label>"
+      "<div class=\"radio-group\">"
+      "<label><INPUT form=\"push\" type=\"radio\" name=\"pushType\" id=\"Ground\" value=\"Ground\" checked required> Low Signal [Ground]</label><br>"
+      "<label><INPUT form=\"push\" type=\"radio\" name=\"pushType\" id=\"Ground\" value=\"High\" required> High Signal [3.3V]</label>"
+      "</div></div>"
+      "<INPUT form=\"push\" type=\"submit\" value=\"Push\">"
       "</FORM>"
-      "<br>"
-      "<hr>"
-      "<br>"
-      "</P>"
+      "</div>"
       "</body>"
       "</html>"
       )
@@ -1904,8 +1984,6 @@ void setup() {
   WiFiClient client;
   client.setNoDelay(1);
 
-//  Serial.println("Web Server Started");
-
   MDNS.begin("ESP");
 
   httpUpdater.setup(&httpServer, update_path, update_username, update_password);
@@ -1917,7 +1995,6 @@ void setup() {
     ftpSrv.begin(String(ftp_username),String(ftp_password));
   }
 
-//Start RFID Reader
   pinMode(LED_BUILTIN, OUTPUT);  // LED
   if (ledenabled==1){
     digitalWrite(LED_BUILTIN, LOW);
@@ -1927,9 +2004,6 @@ void setup() {
   }
 
 }
-//
-
-//Do It!
 
 ///////////////////////////////////////////////////////
 // LOOP function
@@ -1947,9 +2021,6 @@ void loop()
       ESP.restart();
     }
   }
-
-//Serial.print("Free heap-");
-//Serial.println(ESP.getFreeHeap(),DEC);
 
   if(wg.available()) {
     wg.pause();             // pause Wiegand pin interrupts
